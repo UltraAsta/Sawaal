@@ -106,6 +106,7 @@ export async function fetchQuizById(quiz_id: string): Promise<Quiz | null> {
     .eq("id", quiz_id)
     .single();
 
+  console.log(data);
   if (error) throw error;
 
   // Sort questions by order_index

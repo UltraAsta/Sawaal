@@ -3,8 +3,9 @@
 import { Quiz } from "@/models/quiz";
 import { User } from "@/models/user";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -22,74 +23,67 @@ import { useSearch } from "../../contexts/SearchContext";
 import { supabase } from "../../initSupabase";
 
 export default function Home() {
-  const [user, setUser] = useState<User | null>(null);
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [menuVisible, setMenuVisible] = useState<boolean>(false);
   const { bookmarkedQuizIds, toggleBookmark, refreshBookmarks } = useBookmarks();
   const { filters, hasActiveFilters, clearFilters } = useSearch();
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    fetchUser();
-    fetchQuizzes();
-  }, []);
-
-  useEffect(() => {
-    if (user) {
-      refreshBookmarks(user.id);
-    }
-  }, [user]);
-
-  useEffect(() => {
-    // Refetch quizzes when filters change
-    fetchQuizzes();
-  }, [filters]);
-
-  const fetchUser = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase.from("users").select("*").eq("id", user.id).single();
-      setUser(data);
-    }
-  };
-
-  async function handleBookmark(item: Quiz) {
-    if (user) {
-      await toggleBookmark(item.id, user.id);
-    }
-  }
-
-  const fetchQuizzes = async () => {
-    try {
-      // Build the query
-      let query = supabase
-        .from("quizzes")
-        .select(
-          `
-          *,
-          creator:creator_id(id, username, profile_photo_url),
-          category:category_id(id, category_name),
-          difficulty:difficulty_id(id, difficulty_name),
-          questions(id, question_text, options)       
-          `
-        )
-        .eq("is_public", true);
-
-      // Apply search query filter
-      if (filters.query) {
-        query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%`);
+  // Fetch current user
+  const {
+    data: user,
+    isLoading: userLoading,
+    isRefetching: userRefetching,
+  } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.from("users").select("*").eq("id", user.id).single();
+        return data as User;
       }
+      return null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-      const { data, error } = await query.order("created_at", { ascending: false }).limit(100);
+  // Fetch quizzes with filters
+  const {
+    data: quizzes = [],
+    isLoading: loading,
+    isRefetching: refreshing,
+    refetch: refetchQuizzes,
+  } = useQuery({
+    queryKey: ["quizzes", filters],
+    queryFn: async () => {
+      try {
+        // Build the query
+        let query = supabase
+          .from("quizzes")
+          .select(
+            `
+            *,
+            creator:creator_id(id, username, profile_photo_url),
+            category:category_id(id, category_name),
+            difficulty:difficulty_id(id, difficulty_name),
+            questions(id, question_text, options)
+            `
+          )
+          .eq("is_public", true);
 
-      if (error) {
-        console.error("Error fetching quizzes:", error);
-        setQuizzes([]);
-      } else {
+        // Apply search query filter
+        if (filters.query) {
+          query = query.or(`title.ilike.%${filters.query}%,description.ilike.%${filters.query}%`);
+        }
+
+        const { data, error } = await query.order("created_at", { ascending: false }).limit(100);
+
+        if (error) {
+          console.error("Error fetching quizzes:", error);
+          return [];
+        }
+
         // Apply client-side filtering for category and difficulty
         let filteredData = data || [];
 
@@ -106,21 +100,20 @@ export default function Home() {
           );
         }
 
-        setQuizzes(filteredData.slice(0, 20));
+        return filteredData.slice(0, 20) as Quiz[];
+      } catch (error) {
+        console.error("Error:", error);
+        return [];
       }
-    } catch (error) {
-      console.error("Error:", error);
-      setQuizzes([]);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+    },
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
-  const onRefresh = () => {
-    setRefreshing(true);
-    fetchQuizzes();
-  };
+  async function handleBookmark(item: Quiz) {
+    if (user) {
+      await toggleBookmark(item.id, user.id);
+    }
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -130,11 +123,13 @@ export default function Home() {
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty.toLowerCase()) {
       case "easy":
-        return "#10b981";
+        return "#10b981"; // Green
       case "medium":
-        return "#f59e0b";
+        return "#f59e0b"; // Amber
       case "hard":
-        return "#ef4444";
+        return "#ef4444"; // Red
+      case "expert":
+        return "#8b5cf6"; // Purple
       default:
         return "#94a3b8";
     }
@@ -239,7 +234,7 @@ export default function Home() {
           <TouchableOpacity
             style={styles.searchContainer}
             activeOpacity={0.7}
-            onPress={() => router.push("/search-modal")}
+            onPress={() => router.push("/modals/search-modal")}
           >
             <Ionicons name="search" size={20} color="#94a3b8" style={styles.searchIcon} />
             <Text style={styles.searchPlaceholder}>Search quizzes...</Text>
@@ -319,7 +314,7 @@ export default function Home() {
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={onRefresh}
+            onRefresh={refetchQuizzes}
             tintColor="#6366f1"
             colors={["#6366f1"]}
           />

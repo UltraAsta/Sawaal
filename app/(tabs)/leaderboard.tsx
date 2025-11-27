@@ -1,144 +1,41 @@
 "use client";
 
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-interface LeaderboardUser {
-  id: string;
-  username: string;
-  total_points: number;
-  rank: string;
-  profile_photo_url?: string;
-  position: number;
-}
+import { LeaderboardUser, UserRank } from "@/models/user";
+import { assignRank, fetchCurrentUser, fetchTopLeaderboard } from "@/services/user";
 
-// Mock data for leaderboard
-const DUMMY_LEADERBOARD: LeaderboardUser[] = [
-  {
-    id: "1",
-    username: "QuizMaster2024",
-    total_points: 15420,
-    rank: "Legend",
-    position: 1,
-  },
-  {
-    id: "2",
-    username: "BrainiacKing",
-    total_points: 14850,
-    rank: "Master",
-    position: 2,
-  },
-  {
-    id: "3",
-    username: "TriviaNinja",
-    total_points: 13990,
-    rank: "Master",
-    position: 3,
-  },
-  {
-    id: "4",
-    username: "SmartCookie",
-    total_points: 12300,
-    rank: "Expert",
-    position: 4,
-  },
-  {
-    id: "5",
-    username: "GeekGenius",
-    total_points: 11750,
-    rank: "Expert",
-    position: 5,
-  },
-  {
-    id: "6",
-    username: "PuzzleWhiz",
-    total_points: 10500,
-    rank: "Expert",
-    position: 6,
-  },
-  {
-    id: "7",
-    username: "ThinkTank",
-    total_points: 9800,
-    rank: "Advanced",
-    position: 7,
-  },
-  {
-    id: "8",
-    username: "QuizWizard",
-    total_points: 9200,
-    rank: "Advanced",
-    position: 8,
-  },
-  {
-    id: "9",
-    username: "MindBender",
-    total_points: 8750,
-    rank: "Advanced",
-    position: 9,
-  },
-  {
-    id: "10",
-    username: "KnowledgeSeeker",
-    total_points: 8100,
-    rank: "Intermediate",
-    position: 10,
-  },
-  {
-    id: "11",
-    username: "You",
-    total_points: 7500,
-    rank: "Intermediate",
-    position: 11,
-  },
-  {
-    id: "12",
-    username: "TriviaFan",
-    total_points: 6900,
-    rank: "Intermediate",
-    position: 12,
-  },
-  {
-    id: "13",
-    username: "QuizEnthusiast",
-    total_points: 6200,
-    rank: "Beginner",
-    position: 13,
-  },
-  {
-    id: "14",
-    username: "CuriousMind",
-    total_points: 5500,
-    rank: "Beginner",
-    position: 14,
-  },
-  {
-    id: "15",
-    username: "Learner2024",
-    total_points: 4800,
-    rank: "Beginner",
-    position: 15,
-  },
-];
-
-const CURRENT_USER_ID = "11"; // The user's position in the leaderboard
+// Mock function to fetch leaderboard data
 
 export default function Leaderboard() {
-  const [leaderboard, setLeaderboard] = useState<LeaderboardUser[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<"all" | "week" | "month">("all");
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    // Simulate loading
-    setTimeout(() => {
-      setLeaderboard(DUMMY_LEADERBOARD);
-      setLoading(false);
-    }, 500);
-  }, [timeFilter]);
+  const {
+    data: currentUser,
+    isLoading: currentUserLoading,
+    isRefetching: isRefetchingCurrentUser,
+    refetch: refetchCurrentUser,
+  } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: fetchCurrentUser,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Fetch leaderboard data
+  const {
+    data: leaderboard = [],
+    isLoading: loading,
+    isRefetching: isRefetchingLeaderboard,
+    refetch: refetchLeaderboard,
+  } = useQuery({
+    queryKey: ["leaderboard"],
+    queryFn: fetchTopLeaderboard,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
 
   const getMedalEmoji = (position: number) => {
     switch (position) {
@@ -155,25 +52,27 @@ export default function Leaderboard() {
 
   const getRankColor = (rank: string) => {
     switch (rank) {
-      case "Legend":
+      case UserRank.QuizOverlord:
         return "#f59e0b";
-      case "Master":
+      case UserRank.BrainBlaster:
         return "#8b5cf6";
-      case "Expert":
+      case UserRank.KnowledgeNinja:
         return "#3b82f6";
-      case "Advanced":
+      case UserRank.TriviaTitan:
         return "#10b981";
-      case "Intermediate":
+      case UserRank.SmartCookie:
         return "#6366f1";
       default:
         return "#94a3b8";
     }
   };
 
-  const renderLeaderboardItem = ({ item }: { item: LeaderboardUser }) => {
-    const isCurrentUser = item.id === CURRENT_USER_ID;
-    const medal = getMedalEmoji(item.position);
-    const rankColor = getRankColor(item.rank);
+  const renderLeaderboardItem = ({ item, index }: { item: LeaderboardUser; index: number }) => {
+    const isCurrentUser = item.user_id === currentUser?.id;
+    const position = index + 1;
+    const medal = getMedalEmoji(position);
+    const rank = assignRank(item.total_points);
+    const rankColor = getRankColor(rank);
 
     return (
       <View style={[styles.leaderboardItem, isCurrentUser && styles.currentUserItem]}>
@@ -181,7 +80,7 @@ export default function Leaderboard() {
           {medal ? (
             <Text style={styles.medalText}>{medal}</Text>
           ) : (
-            <Text style={styles.positionText}>#{item.position}</Text>
+            <Text style={styles.positionText}>#{position}</Text>
           )}
         </View>
 
@@ -200,23 +99,22 @@ export default function Leaderboard() {
             </Text>
             <View style={styles.rankBadge}>
               <View style={[styles.rankDot, { backgroundColor: rankColor }]} />
-              <Text style={[styles.rankText, { color: rankColor }]}>{item.rank}</Text>
+              <Text style={[styles.rankText, { color: rankColor }]}>{rank}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.pointsContainer}>
-          <Text style={styles.pointsValue}>{item.total_points.toLocaleString()}</Text>
+          <Text style={styles.pointsValue}>{item?.total_points?.toLocaleString()}</Text>
           <Text style={styles.pointsLabel}>pts</Text>
         </View>
       </View>
     );
   };
 
-  if (loading) {
+  if (loading && !leaderboard!.length) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
         <Text style={styles.loadingText}>Loading leaderboard...</Text>
       </View>
     );
@@ -238,58 +136,6 @@ export default function Leaderboard() {
           </View>
           <Text style={styles.headerSubtitle}>Compete with the best quiz takers!</Text>
         </View>
-
-        {/* Time Filter */}
-        {/* <View style={styles.filterContainer}>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              timeFilter === "all" && styles.filterButtonActive,
-            ]}
-            onPress={() => setTimeFilter("all")}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                timeFilter === "all" && styles.filterTextActive,
-              ]}
-            >
-              All Time
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              timeFilter === "month" && styles.filterButtonActive,
-            ]}
-            onPress={() => setTimeFilter("month")}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                timeFilter === "month" && styles.filterTextActive,
-              ]}
-            >
-              This Month
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.filterButton,
-              timeFilter === "week" && styles.filterButtonActive,
-            ]}
-            onPress={() => setTimeFilter("week")}
-          >
-            <Text
-              style={[
-                styles.filterText,
-                timeFilter === "week" && styles.filterTextActive,
-              ]}
-            >
-              This Week
-            </Text>
-          </TouchableOpacity>
-        </View> */}
       </LinearGradient>
 
       {/* Top 3 Podium */}
@@ -301,9 +147,11 @@ export default function Leaderboard() {
           </View>
           <Text style={styles.podiumMedal}>🥈</Text>
           <Text style={styles.podiumUsername} numberOfLines={1}>
-            {leaderboard[1]?.username}
+            {leaderboard?.[1]?.username}
           </Text>
-          <Text style={styles.podiumPoints}>{leaderboard[1]?.total_points.toLocaleString()}</Text>
+          <Text style={styles.podiumPoints}>
+            {leaderboard?.[1]?.total_points?.toLocaleString()}
+          </Text>
           <View style={[styles.podiumBar, styles.secondPlaceBar]} />
         </View>
 
@@ -317,9 +165,11 @@ export default function Leaderboard() {
           </View>
           <Text style={styles.podiumMedal}>🥇</Text>
           <Text style={styles.podiumUsername} numberOfLines={1}>
-            {leaderboard[0]?.username}
+            {leaderboard?.[0]?.username}
           </Text>
-          <Text style={styles.podiumPoints}>{leaderboard[0]?.total_points.toLocaleString()}</Text>
+          <Text style={styles.podiumPoints}>
+            {leaderboard?.[0]?.total_points?.toLocaleString()}
+          </Text>
           <View style={[styles.podiumBar, styles.firstPlaceBar]} />
         </View>
 
@@ -330,9 +180,11 @@ export default function Leaderboard() {
           </View>
           <Text style={styles.podiumMedal}>🥉</Text>
           <Text style={styles.podiumUsername} numberOfLines={1}>
-            {leaderboard[2]?.username}
+            {leaderboard?.[2]?.username}
           </Text>
-          <Text style={styles.podiumPoints}>{leaderboard[2]?.total_points.toLocaleString()}</Text>
+          <Text style={styles.podiumPoints}>
+            {leaderboard?.[2]?.total_points?.toLocaleString() || "N/A"}
+          </Text>
           <View style={[styles.podiumBar, styles.thirdPlaceBar]} />
         </View>
       </View>
@@ -341,9 +193,17 @@ export default function Leaderboard() {
       <FlatList
         data={leaderboard}
         renderItem={renderLeaderboardItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.user_id}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 85 }]}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetchingLeaderboard}
+            onRefresh={refetchLeaderboard}
+            tintColor="#6366f1"
+            colors={["#6366f1"]}
+          />
+        }
       />
     </View>
   );

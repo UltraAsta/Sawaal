@@ -1,10 +1,10 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "../contexts/AuthContexts";
 import { BookmarkProvider } from "../contexts/BookmarkContext";
 import { SearchProvider } from "../contexts/SearchContext";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Create a client
 const queryClient = new QueryClient({
@@ -62,8 +62,11 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="profile/[id]" />
       <Stack.Screen name="quiz/[id]" />
+      <Stack.Screen name="settings/help-support" />
+      <Stack.Screen name="settings/about" />
+      <Stack.Screen name="classroom/create" />
       <Stack.Screen
-        name="search-modal"
+        name="modals/search-modal"
         options={{
           presentation: "transparentModal",
           animation: "fade",

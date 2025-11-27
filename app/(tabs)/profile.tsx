@@ -1,12 +1,15 @@
 "use client";
 
+import { fetchUserQuizAttempts, fetchUserQuizzes } from "@/services/quiz";
+import { assignRank, fetchCurrentUser } from "@/services/user";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
-  ActivityIndicator,
   Image,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,73 +17,63 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { supabase } from "../../initSupabase";
-
-interface UserProfile {
-  id: string;
-  username: string;
-  email: string;
-  profile_photo_url?: string;
-  bio?: string;
-  total_points: number;
-  rank: string;
-  quizzes_completed: number;
-  quizzes_created: number;
-  joined_date: string;
-}
+import EditProfileModal from "../modals/edit-profile-modal";
 
 export default function Profile() {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
+  const [showEditModal, setShowEditModal] = useState(false);
 
-  useEffect(() => {
-    fetchUserProfile();
-  }, []);
+  // Fetch current user
+  const {
+    data: user,
+    isLoading: userLoading,
+    isRefetching: userRefetching,
+    refetch: refetchUser,
+  } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: fetchCurrentUser,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  const fetchUserProfile = async () => {
-    try {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser();
+  // Fetch user's created quizzes
+  const { data: createdQuizzes = [] } = useQuery({
+    queryKey: ["userQuizzes", user?.id],
+    queryFn: () => fetchUserQuizzes(user!.id),
+    enabled: !!user,
+    staleTime: 1 * 60 * 1000,
+  });
 
-      if (authUser) {
-        const { data, error } = await supabase
-          .from("users")
-          .select("*")
-          .eq("id", authUser.id)
-          .single();
+  // Fetch user's quiz attempts
+  const { data: quizAttempts = [] } = useQuery({
+    queryKey: ["userQuizAttempts", user?.id],
+    queryFn: () => fetchUserQuizAttempts(user!.id),
+    enabled: !!user,
+    staleTime: 1 * 60 * 1000,
+  });
 
-        if (error) {
-          console.error("Error fetching user profile:", error);
-        } else {
-          setUser({
-            ...data,
-            email: authUser.email || "",
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Calculate stats
+  const totalPoints = quizAttempts.reduce((sum, attempt) => sum + (attempt.points_earned || 0), 0);
+  const userRank = assignRank(totalPoints);
+  const quizzesCompleted = quizAttempts.length;
+  const quizzesCreated = createdQuizzes.length;
 
   const handleLogout = async () => {
+    const { supabase } = await import("@/initSupabase");
     await supabase.auth.signOut();
     router.replace("/(auth)/login");
   };
 
   const handleEditProfile = () => {
-    // Navigate to edit profile screen
-    // router.push("/(tabs)/edit-profile");
+    setShowEditModal(true);
   };
 
-  if (loading) {
+  const handleEditSuccess = () => {
+    refetchUser();
+  };
+
+  if (userLoading && !user) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366f1" />
         <Text style={styles.loadingText}>Loading profile...</Text>
       </View>
     );
@@ -91,6 +84,14 @@ export default function Profile() {
       style={styles.container}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: insets.bottom + 85 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={userRefetching}
+          onRefresh={refetchUser}
+          tintColor="#6366f1"
+          colors={["#6366f1"]}
+        />
+      }
     >
       {/* Header */}
       <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
@@ -111,10 +112,7 @@ export default function Profile() {
           {user?.profile_photo_url ? (
             <Image source={{ uri: user.profile_photo_url }} style={styles.avatar} />
           ) : (
-            <LinearGradient
-              colors={["#6366f1", "#7c3aed"]}
-              style={styles.avatar}
-            >
+            <LinearGradient colors={["#6366f1", "#7c3aed"]} style={styles.avatar}>
               <Ionicons name="person" size={32} color="#fff" />
             </LinearGradient>
           )}
@@ -122,7 +120,7 @@ export default function Profile() {
             <Text style={styles.username}>@{user?.username || "User"}</Text>
             <View style={styles.rankBadge}>
               <Ionicons name="star" size={12} color="#f59e0b" />
-              <Text style={styles.rankText}>{user?.rank || "Beginner"}</Text>
+              <Text style={styles.rankText}>{userRank}</Text>
             </View>
           </View>
         </View>
@@ -134,7 +132,7 @@ export default function Profile() {
           <View style={styles.statIconContainer}>
             <Ionicons name="star" size={20} color="#6366f1" />
           </View>
-          <Text style={styles.statValue}>{user?.total_points || 0}</Text>
+          <Text style={styles.statValue}>{totalPoints.toLocaleString()}</Text>
           <Text style={styles.statLabel}>Points</Text>
         </View>
 
@@ -142,7 +140,7 @@ export default function Profile() {
           <View style={styles.statIconContainer}>
             <Ionicons name="checkmark-circle" size={20} color="#10b981" />
           </View>
-          <Text style={styles.statValue}>{user?.quizzes_completed || 0}</Text>
+          <Text style={styles.statValue}>{quizzesCompleted}</Text>
           <Text style={styles.statLabel}>Completed</Text>
         </View>
 
@@ -150,7 +148,7 @@ export default function Profile() {
           <View style={styles.statIconContainer}>
             <Ionicons name="add-circle" size={20} color="#f59e0b" />
           </View>
-          <Text style={styles.statValue}>{user?.quizzes_created || 0}</Text>
+          <Text style={styles.statValue}>{quizzesCreated}</Text>
           <Text style={styles.statLabel}>Created</Text>
         </View>
       </View>
@@ -159,28 +157,40 @@ export default function Profile() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.quickActionsGrid}>
-          <TouchableOpacity style={styles.quickActionCard}>
+          <TouchableOpacity
+            style={styles.quickActionCard}
+            onPress={() => router.push("/(tabs)/library")}
+          >
+            <View style={styles.quickActionIconContainer}>
+              <Ionicons name="create-outline" size={24} color="#6366f1" />
+            </View>
+            <Text style={styles.quickActionText}>My Quizzes</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.quickActionCard}
+            onPress={() => router.push("/(tabs)/leaderboard")}
+          >
             <View style={styles.quickActionIconContainer}>
               <Ionicons name="trophy-outline" size={24} color="#6366f1" />
             </View>
-            <Text style={styles.quickActionText}>My Badges</Text>
+            <Text style={styles.quickActionText}>Leaderboard</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.quickActionCard}>
+          <TouchableOpacity
+            style={styles.quickActionCard}
+            onPress={() => router.push("/(tabs)/library")}
+          >
             <View style={styles.quickActionIconContainer}>
-              <Ionicons name="bar-chart-outline" size={24} color="#6366f1" />
+              <Ionicons name="bookmark-outline" size={24} color="#6366f1" />
             </View>
-            <Text style={styles.quickActionText}>Statistics</Text>
+            <Text style={styles.quickActionText}>Saved</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.quickActionCard}>
-            <View style={styles.quickActionIconContainer}>
-              <Ionicons name="heart-outline" size={24} color="#6366f1" />
-            </View>
-            <Text style={styles.quickActionText}>Favorites</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.quickActionCard}>
+          <TouchableOpacity
+            style={styles.quickActionCard}
+            onPress={() => router.push("/(tabs)/library")}
+          >
             <View style={styles.quickActionIconContainer}>
               <Ionicons name="time-outline" size={24} color="#6366f1" />
             </View>
@@ -213,17 +223,10 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
-          <View style={styles.menuItemLeft}>
-            <View style={styles.menuIconContainer}>
-              <Ionicons name="notifications-outline" size={18} color="#6366f1" />
-            </View>
-            <Text style={styles.menuItemText}>Notifications</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity
+          style={styles.menuItem}
+          onPress={() => router.push("/settings/help-support")}
+        >
           <View style={styles.menuItemLeft}>
             <View style={styles.menuIconContainer}>
               <Ionicons name="help-circle-outline" size={18} color="#6366f1" />
@@ -233,7 +236,7 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
+        <TouchableOpacity style={styles.menuItem} onPress={() => router.push("/settings/about")}>
           <View style={styles.menuItemLeft}>
             <View style={styles.menuIconContainer}>
               <Ionicons name="information-circle-outline" size={18} color="#6366f1" />
@@ -247,7 +250,7 @@ export default function Profile() {
       {/* Logout */}
       <View style={styles.section}>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+          <Ionicons name="log-out-outline" size={18} color="#fff" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
       </View>
@@ -255,10 +258,18 @@ export default function Profile() {
       {/* Footer */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>
-          Member since {user?.joined_date ? new Date(user.joined_date).toLocaleDateString() : "N/A"}
+          Member since {user?.created_at ? new Date(user.created_at).toLocaleDateString() : "N/A"}
         </Text>
         <Text style={styles.versionText}>Version 1.0.0</Text>
       </View>
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        visible={showEditModal}
+        user={user || null}
+        onClose={() => setShowEditModal(false)}
+        onSuccess={handleEditSuccess}
+      />
     </ScrollView>
   );
 }
@@ -491,7 +502,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#ffffff",
+    backgroundColor: "#FF5656",
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
@@ -505,7 +516,7 @@ const styles = StyleSheet.create({
   logoutText: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#ef4444",
+    color: "#fff",
   },
   footer: {
     alignItems: "center",

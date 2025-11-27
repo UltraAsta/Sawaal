@@ -92,13 +92,15 @@ export default function MyQuizzes() {
   function getDifficultyColor(difficulty: string) {
     switch (difficulty.toLowerCase()) {
       case "easy":
-        return "#10b981";
+        return "#10b981"; // Green
       case "medium":
-        return "#f59e0b";
+        return "#f59e0b"; // Amber
       case "hard":
-        return "#ef4444";
+        return "#ef4444"; // Red
+      case "expert":
+        return "#8b5cf6"; // Purple
       default:
-        return "#94a3b8";
+        return "#94a3b8"; // Gray
     }
   }
 
@@ -466,12 +468,9 @@ export default function MyQuizzes() {
             </View>
             <Text style={styles.headerTitle}>My Quizzes</Text>
           </View>
-          <TouchableOpacity
-            style={styles.searchButton}
-            onPress={() => router.push("/search-modal")}
-          >
+          {/* <TouchableOpacity style={styles.searchButton} onPress={() => router.push("/searchModal")}>
             <Ionicons name="search" size={20} color="#6366f1" />
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
 
         {/* Tabs */}

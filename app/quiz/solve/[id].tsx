@@ -1,7 +1,7 @@
 "use client";
 
 import type { Quiz } from "@/models/quiz";
-import { fetchQuizById } from "@/models/quiz";
+import { fetchQuizById } from "@/services/quiz";
 import type { User } from "@/models/user";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";

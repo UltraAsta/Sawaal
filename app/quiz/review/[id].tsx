@@ -1,7 +1,7 @@
 "use client";
 
-import type { Question, Quiz, QuizAttempt } from "@/models/quiz";
-import { fetchQuizById, fetchQuizAttemptByUserAndQuiz } from "@/models/quiz";
+import type { Quiz, QuizAttempt } from "@/models/quiz";
+import { fetchQuizAttemptByUserAndQuiz, fetchQuizById } from "@/services/quiz";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";

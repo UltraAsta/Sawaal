@@ -16,7 +16,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useSearch } from "../contexts/SearchContext";
+import { useSearch } from "../../contexts/SearchContext";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 

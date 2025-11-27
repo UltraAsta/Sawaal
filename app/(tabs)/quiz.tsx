@@ -9,7 +9,9 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Switch,
@@ -20,7 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../initSupabase";
-import CategoryModal from "../CategoryModal";
+import CategoryModal from "../modals/category-modal";
 
 export default function CreateQuiz() {
   const [title, setTitle] = useState("");
@@ -236,6 +238,23 @@ export default function CreateQuiz() {
           <Text style={styles.heroSubtitle}>
             Create engaging quizzes and share them with the world
           </Text>
+
+          {/* Classroom Button - Only for Tutors */}
+          <TouchableOpacity
+            style={styles.classroomButton}
+            onPress={() => router.push("/classroom/create")}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={["#10b981", "#059669"]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.classroomButtonGradient}
+            >
+              <Ionicons name="school" size={20} color="#fff" />
+              <Text style={styles.classroomButtonText}>Create Classroom</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
 
         {/* Form Card */}
@@ -537,122 +556,130 @@ export default function CreateQuiz() {
           setEditingQuestion(null);
         }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, styles.questionModalContent]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingQuestion && questions.find((q) => q.id === editingQuestion.id)
-                  ? "Edit Question"
-                  : "Add Question"}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setShowQuestionModal(false);
-                  setEditingQuestion(null);
-                }}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              style={styles.questionModalScroll}
-              contentContainerStyle={{ padding: 20 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Question Input */}
-              <View style={styles.modalInputGroup}>
-                <Text style={styles.modalLabel}>Question</Text>
-                <TextInput
-                  style={[styles.modalInput, styles.modalTextarea]}
-                  placeholder="Enter your question here..."
-                  value={editingQuestion?.question_text || ""}
-                  onChangeText={(text) =>
-                    setEditingQuestion(
-                      editingQuestion ? { ...editingQuestion, question_text: text } : null
-                    )
-                  }
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-
-              {/* Options */}
-              <View style={styles.modalInputGroup}>
-                <Text style={styles.modalLabel}>Answer Options</Text>
-                <View style={styles.optionInputContainer}>
-                  {editingQuestion?.options?.map((option, idx) => (
-                    <View key={idx} style={styles.optionInputWrapper}>
-                      <View style={styles.optionLabel}>
-                        <Text style={styles.optionLabelText}>{String.fromCharCode(65 + idx)}</Text>
-                      </View>
-                      <TextInput
-                        style={styles.optionInput}
-                        placeholder={`Option ${String.fromCharCode(65 + idx)}`}
-                        value={option.text}
-                        onChangeText={(text) => {
-                          if (editingQuestion) {
-                            const newOptions = editingQuestion.options
-                              ? [...editingQuestion.options]
-                              : [];
-                            newOptions[idx] = { ...option, text };
-                            setEditingQuestion({ ...editingQuestion, options: newOptions });
-                          }
-                        }}
-                        placeholderTextColor="#94a3b8"
-                      />
-                      <TouchableOpacity
-                        style={[
-                          styles.correctAnswerButton,
-                          editingQuestion?.correct_answer === option.id &&
-                            styles.correctAnswerButtonActive,
-                        ]}
-                        onPress={() =>
-                          setEditingQuestion(
-                            editingQuestion
-                              ? { ...editingQuestion, correct_answer: option.id }
-                              : null
-                          )
-                        }
-                      >
-                        <Ionicons
-                          name={
-                            editingQuestion?.correct_answer === option.id
-                              ? "checkmark-circle"
-                              : "checkmark-circle-outline"
-                          }
-                          size={20}
-                          color={
-                            editingQuestion?.correct_answer === option.id ? "#ffffff" : "#cbd5e1"
-                          }
-                        />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </View>
-                <Text style={styles.correctAnswerHint}>
-                  Tap the checkmark to select the correct answer
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, styles.questionModalContent]}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {editingQuestion && questions.find((q) => q.id === editingQuestion.id)
+                    ? "Edit Question"
+                    : "Add Question"}
                 </Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowQuestionModal(false);
+                    setEditingQuestion(null);
+                  }}
+                  style={styles.modalCloseButton}
+                >
+                  <Ionicons name="close" size={24} color="#64748b" />
+                </TouchableOpacity>
               </View>
 
-              {/* Save Button */}
-              <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveQuestion}>
-                <LinearGradient
-                  colors={["#6366f1", "#7c3aed"]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.modalSaveButtonGradient}
-                >
-                  <Ionicons name="checkmark-circle" size={20} color="#fff" />
-                  <Text style={styles.modalSaveButtonText}>Save Question</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </ScrollView>
+              <ScrollView
+                style={styles.questionModalScroll}
+                contentContainerStyle={{ padding: 20 }}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {/* Question Input */}
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalLabel}>Question</Text>
+                  <TextInput
+                    style={[styles.modalInput, styles.modalTextarea]}
+                    placeholder="Enter your question here..."
+                    value={editingQuestion?.question_text || ""}
+                    onChangeText={(text) =>
+                      setEditingQuestion(
+                        editingQuestion ? { ...editingQuestion, question_text: text } : null
+                      )
+                    }
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+
+                {/* Options */}
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalLabel}>Answer Options</Text>
+                  <View style={styles.optionInputContainer}>
+                    {editingQuestion?.options?.map((option, idx) => (
+                      <View key={idx} style={styles.optionInputWrapper}>
+                        <View style={styles.optionLabel}>
+                          <Text style={styles.optionLabelText}>
+                            {String.fromCharCode(65 + idx)}
+                          </Text>
+                        </View>
+                        <TextInput
+                          style={styles.optionInput}
+                          placeholder={`Option ${String.fromCharCode(65 + idx)}`}
+                          value={option.text}
+                          onChangeText={(text) => {
+                            if (editingQuestion) {
+                              const newOptions = editingQuestion.options
+                                ? [...editingQuestion.options]
+                                : [];
+                              newOptions[idx] = { ...option, text };
+                              setEditingQuestion({ ...editingQuestion, options: newOptions });
+                            }
+                          }}
+                          placeholderTextColor="#94a3b8"
+                        />
+                        <TouchableOpacity
+                          style={[
+                            styles.correctAnswerButton,
+                            editingQuestion?.correct_answer === option.id &&
+                              styles.correctAnswerButtonActive,
+                          ]}
+                          onPress={() =>
+                            setEditingQuestion(
+                              editingQuestion
+                                ? { ...editingQuestion, correct_answer: option.id }
+                                : null
+                            )
+                          }
+                        >
+                          <Ionicons
+                            name={
+                              editingQuestion?.correct_answer === option.id
+                                ? "checkmark-circle"
+                                : "checkmark-circle-outline"
+                            }
+                            size={20}
+                            color={
+                              editingQuestion?.correct_answer === option.id ? "#ffffff" : "#cbd5e1"
+                            }
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </View>
+                  <Text style={styles.correctAnswerHint}>
+                    Tap the checkmark to select the correct answer
+                  </Text>
+                </View>
+
+                {/* Save Button */}
+                <TouchableOpacity style={styles.modalSaveButton} onPress={handleSaveQuestion}>
+                  <LinearGradient
+                    colors={["#6366f1", "#7c3aed"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.modalSaveButtonGradient}
+                  >
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                    <Text style={styles.modalSaveButtonText}>Save Question</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </ScrollView>
+            </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -723,6 +750,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontWeight: "500",
     lineHeight: 22,
+    marginBottom: 20,
+  },
+  classroomButton: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#10b981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  classroomButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+  },
+  classroomButtonText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#fff",
   },
   formCard: {
     backgroundColor: "#fff",
