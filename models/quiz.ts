@@ -34,6 +34,8 @@ export interface Quiz {
   description: string;
   is_public: boolean;
   is_ai_generated: boolean;
+  is_practice?: boolean;
+  classroom_id?: string | null;
   total_attempts: number;
   created_at: string;
   updated_at: string;

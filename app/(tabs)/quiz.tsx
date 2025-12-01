@@ -2,10 +2,13 @@
 
 import BackButton from "@/components/back-button";
 import { Question, QuizCategory, QuizDifficulty } from "@/models/quiz";
+import { UserRole } from "@/models/user";
+import { fetchCurrentUser } from "@/services/user";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -36,46 +39,34 @@ export default function CreateQuiz() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
-  const [categories, setCategories] = useState<QuizCategory[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [difficulties, setDifficulties] = useState<QuizDifficulty[]>([]);
 
   const insets = useSafeAreaInsets();
 
-  useEffect(() => {
-    fetchCategories();
-    fetchQuizDifficultyLevels();
-  }, []);
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+    queryKey: ["quiz_categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("quiz_categories").select("*");
+      if (error) throw error;
+      return data as QuizCategory[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-  async function fetchQuizDifficultyLevels() {
-    try {
+  const { data: difficulties = [] } = useQuery({
+    queryKey: ["quiz_difficulty"],
+    queryFn: async () => {
       const { data, error } = await supabase.from("quiz_difficulty").select("*");
       if (error) throw error;
+      return data as QuizDifficulty[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
-      setDifficulties(data);
-    } catch (e: unknown) {
-      console.log(e);
-      Alert.alert("Something went wrong with getting difficulty levels, please try again later");
-    }
-  }
-
-  async function fetchCategories() {
-    try {
-      setCategoriesLoading(true);
-      const { data, error } = await supabase.from("quiz_categories").select("*");
-      if (error) {
-        console.log(error.message);
-        Alert.alert("Error", "Failed to load categories");
-      } else if (data) {
-        setCategories(data);
-      }
-    } catch (e: unknown) {
-      console.log(e);
-      Alert.alert("Error", "Failed to load categories");
-    } finally {
-      setCategoriesLoading(false);
-    }
-  }
+  const { data: user } = useQuery({
+    queryKey: ["current_user"],
+    queryFn: fetchCurrentUser,
+    staleTime: 5 * 60 * 1000,
+  });
 
   const handleAddQuestion = () => {
     setEditingQuestion({
@@ -239,22 +230,40 @@ export default function CreateQuiz() {
             Create engaging quizzes and share them with the world
           </Text>
 
-          {/* Classroom Button - Only for Tutors */}
-          <TouchableOpacity
-            style={styles.classroomButton}
-            onPress={() => router.push("/classroom/create")}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={["#10b981", "#059669"]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.classroomButtonGradient}
+          {user?.role === UserRole.Tutor ? (
+            <TouchableOpacity
+              style={styles.classroomButton}
+              onPress={() => router.push("/classroom")}
+              activeOpacity={0.8}
             >
-              <Ionicons name="school" size={20} color="#fff" />
-              <Text style={styles.classroomButtonText}>Create Classroom</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+              <LinearGradient
+                colors={["#6366f1", "#7c3aed"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.classroomButtonGradient}
+              >
+                <Ionicons name="school" size={20} color="#fff" />
+                <Text style={styles.classroomButtonText}>My Classrooms</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : user?.role === UserRole.Student ? (
+            <TouchableOpacity
+              style={styles.classroomButton}
+              onPress={() => router.push("/student/classrooms")}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={["#6366f1", "#7c3aed"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.classroomButtonGradient}
+              >
+                <Ionicons name="book" size={20} color="#fff" />
+                <Text style={styles.classroomButtonText}>My Classrooms</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : null}
+          {/* Classroom Button - Only for Tutors */}
         </View>
 
         {/* Form Card */}

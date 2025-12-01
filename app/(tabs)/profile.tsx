@@ -51,10 +51,12 @@ export default function Profile() {
     staleTime: 1 * 60 * 1000,
   });
 
-  // Calculate stats
-  const totalPoints = quizAttempts.reduce((sum, attempt) => sum + (attempt.points_earned || 0), 0);
+  // Calculate stats (excluding practice quizzes)
+  const totalPoints = quizAttempts
+    .filter((attempt) => !attempt.quiz?.is_practice)
+    .reduce((sum, attempt) => sum + (attempt.points_earned || 0), 0);
   const userRank = assignRank(totalPoints);
-  const quizzesCompleted = quizAttempts.length;
+  const quizzesCompleted = quizAttempts.filter((attempt) => !attempt.quiz?.is_practice).length;
   const quizzesCreated = createdQuizzes.length;
 
   const handleLogout = async () => {

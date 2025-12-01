@@ -223,3 +223,28 @@ export async function deleteVote(id: string): Promise<void> {
   const { error } = await supabase.from("votes").delete().eq("id", id);
   if (error) throw error;
 }
+
+export async function fetchCreatorQuizzes(creatorId: string): Promise<Quiz[]> {
+  const { data, error } = await supabase
+    .from("quizzes")
+    .select(
+      `
+      *,
+      category:quiz_categories!category_id(id, category_name),
+      difficulty:quiz_difficulty!difficulty_id(id, difficulty_name)
+    `
+    )
+    .eq("creator_id", creatorId)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  // Transform the data to ensure category and difficulty are objects, not arrays
+  const transformedData = (data || []).map((quiz: any) => ({
+    ...quiz,
+    category: Array.isArray(quiz.category) ? quiz.category[0] : quiz.category,
+    difficulty: Array.isArray(quiz.difficulty) ? quiz.difficulty[0] : quiz.difficulty,
+  }));
+
+  return transformedData as Quiz[];
+}

@@ -64,7 +64,11 @@ function RootLayoutNav() {
       <Stack.Screen name="quiz/[id]" />
       <Stack.Screen name="settings/help-support" />
       <Stack.Screen name="settings/about" />
+      <Stack.Screen name="classroom/index" />
       <Stack.Screen name="classroom/create" />
+      <Stack.Screen name="classroom/[id]" />
+      <Stack.Screen name="student/classrooms" />
+      <Stack.Screen name="student/classroom/[id]" />
       <Stack.Screen
         name="modals/search-modal"
         options={{

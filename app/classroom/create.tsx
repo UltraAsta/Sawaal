@@ -1,8 +1,13 @@
 "use client";
 
 import BackButton from "@/components/back-button";
+import { Classroom } from "@/models/classroom";
+import { Quiz } from "@/models/quiz";
 import { UserRole } from "@/models/user";
+import { createClassroom, generateClassroomJoinCode } from "@/services/classroom";
+import { fetchCurrentUser } from "@/services/user";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -18,44 +23,69 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import QuizSelectorModal from "../modals/quiz-selector-modal";
 
 export default function CreateClassroom() {
   const insets = useSafeAreaInsets();
 
-  // TODO: Replace with actual user from context/query
-  const userRole = UserRole.Tutor; // Mock - should come from auth context
-
   const [classroomName, setClassroomName] = useState("");
   const [description, setDescription] = useState("");
-  const [joinCode, setJoinCode] = useState("ABC123"); // Mock auto-generated code
-  const [selectedQuizCount, setSelectedQuizCount] = useState(0);
+  const [joinCode, setJoinCode] = useState(generateClassroomJoinCode());
+  const [selectedQuizzes, setSelectedQuizzes] = useState<Quiz[]>([]);
+  const [showQuizSelector, setShowQuizSelector] = useState(false);
 
-  // Role-based access control - redirect if not tutor
-  if (userRole !== UserRole.Tutor) {
+  const {
+    data: user,
+    refetch: refetchCurrentUser,
+    isLoading: loadingCurrentUser,
+  } = useQuery({
+    queryKey: ["currentUser"],
+    queryFn: fetchCurrentUser,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (user!.role !== UserRole.Tutor) {
     Alert.alert("Access Denied", "Only tutors can create classrooms");
     router.back();
     return null;
   }
 
-  const generateJoinCode = () => {
-    // Mock function - will implement random generation later
-    const codes = ["XYZ789", "QWE456", "RTY123", "UIO987", "ASD654"];
-    setJoinCode(codes[Math.floor(Math.random() * codes.length)]);
-  };
-
   const handleSelectQuizzes = () => {
-    // TODO: Open quiz selector modal
-    Alert.alert("Coming Soon", "Quiz selection will be implemented");
+    setShowQuizSelector(true);
   };
 
-  const handleCreateClassroom = () => {
-    // TODO: Implement classroom creation logic
+  const handleQuizSelection = (quizzes: Quiz[]) => {
+    setSelectedQuizzes(quizzes);
+  };
+
+  async function handleClassroomCreation() {
     if (!classroomName.trim()) {
       Alert.alert("Error", "Please enter a classroom name");
       return;
     }
-    Alert.alert("Success", "Classroom creation will be implemented");
-  };
+
+    try {
+      const classroom: Partial<Classroom> = {
+        name: classroomName,
+        description,
+        code: joinCode,
+        creator: user!,
+      };
+
+      const quizIds = selectedQuizzes.map((q) => q.id);
+      await createClassroom(classroom as Classroom, quizIds);
+
+      Alert.alert("Success", "Classroom created successfully!", [
+        {
+          text: "OK",
+          onPress: () => router.push("/classroom"),
+        },
+      ]);
+    } catch (e: unknown) {
+      console.log(e);
+      Alert.alert("Error", "Something went wrong, Please try again later");
+    }
+  }
 
   return (
     <View style={styles.container}>
@@ -79,10 +109,7 @@ export default function CreateClassroom() {
       >
         <ScrollView
           style={styles.content}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: insets.bottom + 20 },
-          ]}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -107,12 +134,7 @@ export default function CreateClassroom() {
                 Classroom Name <Text style={styles.required}>*</Text>
               </Text>
               <View style={styles.inputContainer}>
-                <Ionicons
-                  name="bookmark"
-                  size={20}
-                  color="#94a3b8"
-                  style={styles.inputIcon}
-                />
+                <Ionicons name="bookmark" size={20} color="#94a3b8" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="e.g., Python Basics 2024"
@@ -156,9 +178,7 @@ export default function CreateClassroom() {
                 </View>
                 <View style={styles.joinCodeInfo}>
                   <Text style={styles.joinCodeLabel}>Join Code</Text>
-                  <Text style={styles.joinCodeSubtext}>
-                    Students will use this code to join
-                  </Text>
+                  <Text style={styles.joinCodeSubtext}>Students will use this code to join</Text>
                 </View>
               </View>
 
@@ -166,7 +186,7 @@ export default function CreateClassroom() {
                 <Text style={styles.joinCodeText}>{joinCode}</Text>
                 <TouchableOpacity
                   style={styles.regenerateButton}
-                  onPress={generateJoinCode}
+                  onPress={() => setJoinCode(generateClassroomJoinCode())}
                 >
                   <Ionicons name="refresh" size={18} color="#6366f1" />
                   <Text style={styles.regenerateText}>Regenerate</Text>
@@ -203,12 +223,12 @@ export default function CreateClassroom() {
               <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
             </TouchableOpacity>
 
-            {selectedQuizCount > 0 && (
+            {selectedQuizzes.length > 0 && (
               <View style={styles.selectedQuizzesBadge}>
                 <Ionicons name="checkmark-circle" size={16} color="#10b981" />
                 <Text style={styles.selectedQuizzesText}>
-                  {selectedQuizCount} {selectedQuizCount === 1 ? "quiz" : "quizzes"}{" "}
-                  selected
+                  {selectedQuizzes.length}{" "}
+                  {selectedQuizzes.length === 1 ? "quiz" : "quizzes"} selected
                 </Text>
               </View>
             )}
@@ -225,7 +245,7 @@ export default function CreateClassroom() {
           <View style={styles.actionSection}>
             <TouchableOpacity
               style={styles.createButton}
-              onPress={handleCreateClassroom}
+              onPress={handleClassroomCreation}
               activeOpacity={0.8}
             >
               <LinearGradient
@@ -239,15 +259,21 @@ export default function CreateClassroom() {
               </LinearGradient>
             </TouchableOpacity>
 
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => router.back()}
-            >
+            <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Quiz Selector Modal */}
+      <QuizSelectorModal
+        visible={showQuizSelector}
+        onClose={() => setShowQuizSelector(false)}
+        onSelect={handleQuizSelection}
+        creatorId={user?.id || ""}
+        selectedQuizIds={selectedQuizzes.map((q) => q.id)}
+      />
     </View>
   );
 }

@@ -70,7 +70,8 @@ export default function Home() {
             questions(id, question_text, options)
             `
           )
-          .eq("is_public", true);
+          .eq("is_public", true)
+          .eq("is_practice", false);
 
         // Apply search query filter
         if (filters.query) {
