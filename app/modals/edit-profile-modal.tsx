@@ -8,6 +8,7 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as ImagePicker from "expo-image-picker";
 import { supabase } from "../../initSupabase";
 
 interface EditProfileModalProps {
@@ -37,7 +39,99 @@ export default function EditProfileModal({
   const insets = useSafeAreaInsets();
   const [username, setUsername] = useState(user?.username || "");
   const [bio, setBio] = useState(user?.bio || "");
+  const [profilePhotoUri, setProfilePhotoUri] = useState<string | null>(
+    user?.profile_photo_url || null
+  );
   const [loading, setLoading] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  const handlePickImage = async () => {
+    try {
+      // Check current permissions
+      const { status: existingStatus } = await ImagePicker.getMediaLibraryPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      // Request permissions if not granted
+      if (existingStatus !== "granted") {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please enable photo library access in your device settings to change your profile photo.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      // Launch image picker
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setUploadingPhoto(true);
+        await uploadProfilePhoto(result.assets[0].uri);
+      }
+    } catch (error: any) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image: " + (error.message || "Unknown error"));
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const uploadProfilePhoto = async (uri: string) => {
+    if (!user) return;
+
+    try {
+      // Create file name
+      const fileExt = uri.split(".").pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `profile-photos/${fileName}`;
+
+      // Convert URI to blob for upload
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+
+      // Upload to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, arrayBuffer, {
+          contentType: `image/${fileExt}`,
+          upsert: false,
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Get public URL
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
+      // Update user profile with new photo URL
+      const { error: updateError } = await supabase
+        .from("users")
+        .update({
+          profile_photo_url: urlData.publicUrl,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id);
+
+      if (updateError) throw updateError;
+
+      setProfilePhotoUri(urlData.publicUrl);
+      Alert.alert("Success", "Profile photo updated successfully");
+      onSuccess();
+    } catch (error: any) {
+      console.error("Error uploading photo:", error);
+      Alert.alert("Error", error.message || "Failed to upload photo");
+    }
+  };
 
   const handleSave = async () => {
     if (!user) return;
@@ -131,15 +225,26 @@ export default function EditProfileModal({
               {/* Profile Picture Section */}
               <View style={styles.section}>
                 <View style={styles.avatarSection}>
-                  <LinearGradient
-                    colors={["#6366f1", "#7c3aed"]}
-                    style={styles.avatar}
+                  {profilePhotoUri ? (
+                    <Image source={{ uri: profilePhotoUri }} style={styles.avatar} />
+                  ) : (
+                    <LinearGradient colors={["#6366f1", "#7c3aed"]} style={styles.avatar}>
+                      <Ionicons name="person" size={48} color="#fff" />
+                    </LinearGradient>
+                  )}
+                  <TouchableOpacity
+                    style={styles.changePhotoButton}
+                    onPress={handlePickImage}
+                    disabled={uploadingPhoto}
                   >
-                    <Ionicons name="person" size={48} color="#fff" />
-                  </LinearGradient>
-                  <TouchableOpacity style={styles.changePhotoButton}>
-                    <Ionicons name="camera" size={16} color="#6366f1" />
-                    <Text style={styles.changePhotoText}>Change Photo</Text>
+                    {uploadingPhoto ? (
+                      <ActivityIndicator size="small" color="#6366f1" />
+                    ) : (
+                      <>
+                        <Ionicons name="camera" size={16} color="#6366f1" />
+                        <Text style={styles.changePhotoText}>Change Photo</Text>
+                      </>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>

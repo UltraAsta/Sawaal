@@ -37,12 +37,14 @@ export default function QuizDetailsPage() {
   const [votes, setVotes] = useState<Vote[]>([]);
   const [userVote, setUserVote] = useState<"upvote" | "downvote" | null>(null);
   const [voteCounts, setVoteCounts] = useState({ upvotes: 0, downvotes: 0 });
+  const [hasAttempted, setHasAttempted] = useState(false);
 
   useEffect(() => {
     fetchUser();
     fetchQuizDetails();
     fetchComments();
     fetchVotes();
+    checkUserAttempt();
   }, [id]);
 
   const fetchUser = async () => {
@@ -130,9 +132,47 @@ export default function QuizDetailsPage() {
     }
   };
 
+  const checkUserAttempt = async () => {
+    try {
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
+
+      if (!authUser) {
+        setHasAttempted(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("quiz_attempts")
+        .select("id")
+        .eq("quiz_id", id)
+        .eq("user_id", authUser.id)
+        .limit(1);
+
+      if (error) {
+        console.error("Error checking user attempt:", error);
+        setHasAttempted(false);
+        return;
+      }
+
+      const attempted = data && data.length > 0;
+      console.log("Has attempted quiz:", attempted, "User ID:", authUser.id, "Quiz ID:", id);
+      setHasAttempted(attempted);
+    } catch (error) {
+      console.error("Error checking user attempt:", error);
+      setHasAttempted(false);
+    }
+  };
+
   const handleVote = async (voteType: "upvote" | "downvote") => {
     if (!user) {
       Alert.alert("Error", "You must be logged in to vote");
+      return;
+    }
+
+    if (!hasAttempted) {
+      Alert.alert("Can't Vote Yet", "You need to attempt this quiz before you can vote on it");
       return;
     }
 
@@ -232,6 +272,7 @@ export default function QuizDetailsPage() {
     fetchQuizDetails();
     fetchComments();
     fetchVotes();
+    checkUserAttempt();
   };
 
   const getDifficultyColor = (difficulty: string) => {
@@ -338,6 +379,14 @@ export default function QuizDetailsPage() {
               <Text style={styles.quickStatText}>{} Attempts</Text>
             </View>
           </View>
+
+          {/* Creation Date */}
+          <View style={styles.creationDateBadge}>
+            <Ionicons name="calendar-outline" size={14} color="rgba(255, 255, 255, 0.8)" />
+            <Text style={styles.creationDateText}>
+              Created {new Date(quiz.created_at).toLocaleDateString()}
+            </Text>
+          </View>
         </View>
       </LinearGradient>
 
@@ -374,11 +423,21 @@ export default function QuizDetailsPage() {
         {/* Voting Section */}
         <View style={styles.votingSection}>
           <Text style={styles.sectionTitle}>How was this quiz?</Text>
+          {!hasAttempted && (
+            <Text style={styles.votingHint}>
+              Complete this quiz to vote and share your feedback
+            </Text>
+          )}
           <View style={styles.votingContainer}>
             <TouchableOpacity
-              style={[styles.voteCard, userVote === "upvote" && styles.voteCardActiveUp]}
+              style={[
+                styles.voteCard,
+                userVote === "upvote" && styles.voteCardActiveUp,
+                !hasAttempted && styles.voteCardDisabled,
+              ]}
               onPress={() => handleVote("upvote")}
               activeOpacity={0.7}
+              disabled={!hasAttempted}
             >
               <View
                 style={[styles.voteIconContainer, userVote === "upvote" && styles.voteIconActiveUp]}
@@ -410,9 +469,14 @@ export default function QuizDetailsPage() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.voteCard, userVote === "downvote" && styles.voteCardActiveDown]}
+              style={[
+                styles.voteCard,
+                userVote === "downvote" && styles.voteCardActiveDown,
+                !hasAttempted && styles.voteCardDisabled,
+              ]}
               onPress={() => handleVote("downvote")}
               activeOpacity={0.7}
+              disabled={!hasAttempted}
             >
               <View
                 style={[
@@ -690,6 +754,24 @@ const styles = StyleSheet.create({
     color: "#fff",
     letterSpacing: 0.3,
   },
+  creationDateBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 20,
+    alignSelf: "center",
+  },
+  creationDateText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "rgba(255, 255, 255, 0.9)",
+    letterSpacing: 0.3,
+  },
   scrollView: {
     flex: 1,
   },
@@ -765,6 +847,13 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     letterSpacing: 0.3,
   },
+  votingHint: {
+    fontSize: 14,
+    color: "#94a3b8",
+    fontWeight: "600",
+    marginBottom: 12,
+    textAlign: "center",
+  },
   votingContainer: {
     flexDirection: "row",
     gap: 14,
@@ -791,6 +880,10 @@ const styles = StyleSheet.create({
   voteCardActiveDown: {
     backgroundColor: "#fef2f2",
     borderColor: "#ef4444",
+  },
+  voteCardDisabled: {
+    opacity: 0.5,
+    backgroundColor: "#f8fafc",
   },
   voteIconContainer: {
     width: 64,

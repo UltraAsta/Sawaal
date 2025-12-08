@@ -148,6 +148,14 @@ export default function QuizSelectorModal({
                               <Text style={styles.metaText}>{quiz.difficulty.difficulty_name}</Text>
                             </View>
                           )}
+                          {quiz.created_at && (
+                            <View style={styles.metaItem}>
+                              <Ionicons name="calendar-outline" size={12} color="#64748b" />
+                              <Text style={styles.metaText}>
+                                {new Date(quiz.created_at).toLocaleDateString()}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                     </View>
