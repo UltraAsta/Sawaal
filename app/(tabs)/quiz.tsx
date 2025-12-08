@@ -3,9 +3,11 @@
 import BackButton from "@/components/back-button";
 import { Question, QuizCategory, QuizDifficulty } from "@/models/quiz";
 import { UserRole } from "@/models/user";
+import { generateQuestionsFromDocument } from "@/services/ai";
 import { fetchCurrentUser } from "@/services/user";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
+import * as DocumentPicker from "expo-document-picker";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -33,12 +35,16 @@ export default function CreateQuiz() {
   const [category, setCategory] = useState("");
   const [difficultyLevel, setDifficultyLevel] = useState<QuizDifficulty>();
   const [isPublic, setIsPublic] = useState(true);
-  // const [isAiGenerated, setIsAiGenerated] = useState(false);
+  const [isAiGenerated, setIsAiGenerated] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [editingQuestion, setEditingQuestion] = useState<Question | null>(null);
   const [showQuestionModal, setShowQuestionModal] = useState(false);
+  const [uploadedDocument, setUploadedDocument] =
+    useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  const [generatingQuestions, setGeneratingQuestions] = useState(false);
+  const [numberOfQuestions, setNumberOfQuestions] = useState("5");
 
   const insets = useSafeAreaInsets();
 
@@ -67,6 +73,86 @@ export default function CreateQuiz() {
     queryFn: fetchCurrentUser,
     staleTime: 5 * 60 * 1000,
   });
+
+  const handleDocumentPick = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: [
+          "application/pdf",
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "text/plain",
+        ],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        setUploadedDocument(result.assets[0]);
+        Alert.alert("Success", "Document uploaded successfully!");
+      }
+    } catch (error) {
+      console.error("Error picking document:", error);
+      Alert.alert("Error", "Failed to upload document");
+    }
+  };
+
+  const handleRemoveDocument = () => {
+    Alert.alert("Remove Document", "Are you sure you want to remove this document?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: () => setUploadedDocument(null),
+      },
+    ]);
+  };
+
+  const handleGenerateQuestions = async () => {
+    if (!uploadedDocument) {
+      Alert.alert("Error", "Please upload a document first");
+      return;
+    }
+
+    const numQuestions = parseInt(numberOfQuestions);
+    if (isNaN(numQuestions) || numQuestions < 1 || numQuestions > 20) {
+      Alert.alert("Error", "Please enter a valid number of questions (1-20)");
+      return;
+    }
+
+    setGeneratingQuestions(true);
+
+    try {
+      const generatedQuestions = await generateQuestionsFromDocument({
+        documentUri: uploadedDocument.uri,
+        documentName: uploadedDocument.name,
+        numberOfQuestions: numQuestions,
+      });
+
+      // Add generated questions to existing questions
+      setQuestions([...questions, ...generatedQuestions]);
+
+      Alert.alert(
+        "Success",
+        `Generated ${generatedQuestions.length} questions! You can review and edit them below.`,
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Optionally clear the document after generation
+              // setUploadedDocument(null);
+            },
+          },
+        ]
+      );
+    } catch (error: any) {
+      console.error("Error generating questions:", error);
+      Alert.alert(
+        "Error",
+        error.message || "Failed to generate questions. Please check your OpenAI API key and try again."
+      );
+    } finally {
+      setGeneratingQuestions(false);
+    }
+  };
 
   const handleAddQuestion = () => {
     setEditingQuestion({
@@ -167,6 +253,7 @@ export default function CreateQuiz() {
             category_id: category,
             difficulty_id: difficultyLevel?.id,
             is_public: isPublic,
+            is_ai_generated: isAiGenerated,
           },
         ])
         .select()
@@ -499,14 +586,14 @@ export default function CreateQuiz() {
               />
             </View>
 
-            {/* <View style={styles.settingCard}>
+            <View style={styles.settingCard}>
               <View style={styles.settingLeft}>
                 <View style={[styles.settingIconContainer, { backgroundColor: "#fef3c7" }]}>
                   <Ionicons name="sparkles-outline" size={22} color="#f59e0b" />
                 </View>
                 <View style={styles.settingContent}>
                   <Text style={styles.settingLabel}>AI Generated</Text>
-                  <Text style={styles.settingDescription}>Mark as created with AI assistance</Text>
+                  <Text style={styles.settingDescription}>Generate quiz using AI</Text>
                 </View>
               </View>
               <Switch
@@ -516,8 +603,110 @@ export default function CreateQuiz() {
                 thumbColor={isAiGenerated ? "#f59e0b" : "#fff"}
                 ios_backgroundColor="#e2e8f0"
               />
-            </View> */}
+            </View>
           </View>
+
+          {/* Document Upload Section - Only visible when AI Generated is enabled */}
+          {isAiGenerated && (
+            <View style={styles.documentSection}>
+              <Text style={styles.documentSectionTitle}>Upload Source Document</Text>
+              <Text style={styles.documentSectionSubtitle}>
+                Upload a PDF, Word document, or text file to generate quiz questions from
+              </Text>
+
+              {uploadedDocument ? (
+                <View style={styles.uploadedDocumentCard}>
+                  <View style={styles.uploadedDocumentInfo}>
+                    <View style={styles.documentIconContainer}>
+                      <Ionicons name="document-text" size={32} color="#6366f1" />
+                    </View>
+                    <View style={styles.documentDetails}>
+                      <Text style={styles.documentName} numberOfLines={1}>
+                        {uploadedDocument.name}
+                      </Text>
+                      <Text style={styles.documentSize}>
+                        {uploadedDocument.size
+                          ? `${(uploadedDocument.size / 1024).toFixed(2)} KB`
+                          : "Unknown size"}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeDocumentButton}
+                    onPress={handleRemoveDocument}
+                  >
+                    <Ionicons name="close-circle" size={24} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.uploadButton}
+                  onPress={handleDocumentPick}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.uploadIconContainer}>
+                    <Ionicons name="cloud-upload-outline" size={40} color="#6366f1" />
+                  </View>
+                  <Text style={styles.uploadText}>Tap to upload document</Text>
+                  <Text style={styles.uploadSubtext}>PDF, DOCX, or TXT (Max 10MB)</Text>
+                </TouchableOpacity>
+              )}
+
+              {uploadedDocument && (
+                <>
+                  {/* Number of Questions Input */}
+                  <View style={styles.questionCountInput}>
+                    <Text style={styles.questionCountLabel}>Number of Questions</Text>
+                    <View style={styles.questionCountWrapper}>
+                      <TextInput
+                        style={styles.questionCountField}
+                        value={numberOfQuestions}
+                        onChangeText={setNumberOfQuestions}
+                        keyboardType="number-pad"
+                        placeholder="5"
+                        maxLength={2}
+                        placeholderTextColor="#94a3b8"
+                      />
+                      <Text style={styles.questionCountHint}>(1-20 questions)</Text>
+                    </View>
+                  </View>
+
+                  {/* Generate Button */}
+                  <TouchableOpacity
+                    style={styles.generateQuestionsButton}
+                    onPress={handleGenerateQuestions}
+                    disabled={generatingQuestions}
+                    activeOpacity={0.8}
+                  >
+                    <LinearGradient
+                      colors={
+                        generatingQuestions
+                          ? ["#94a3b8", "#94a3b8"]
+                          : ["#f59e0b", "#f97316"]
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.generateQuestionsGradient}
+                    >
+                      {generatingQuestions ? (
+                        <>
+                          <ActivityIndicator color="#fff" size="small" />
+                          <Text style={styles.generateQuestionsText}>Generating...</Text>
+                        </>
+                      ) : (
+                        <>
+                          <Ionicons name="sparkles" size={20} color="#fff" />
+                          <Text style={styles.generateQuestionsText}>
+                            Generate Questions with AI
+                          </Text>
+                        </>
+                      )}
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          )}
 
           {/* Create Button */}
           <TouchableOpacity
@@ -1335,5 +1524,154 @@ const styles = StyleSheet.create({
     color: "#ffffff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  documentSection: {
+    marginTop: 24,
+    marginBottom: 32,
+  },
+  documentSectionTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 8,
+    letterSpacing: 0.2,
+  },
+  documentSectionSubtitle: {
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  uploadButton: {
+    backgroundColor: "#faf5ff",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#ede9fe",
+    borderStyle: "dashed",
+    padding: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  uploadIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#ede9fe",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  uploadText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  uploadSubtext: {
+    fontSize: 13,
+    color: "#94a3b8",
+    fontWeight: "500",
+  },
+  uploadedDocumentCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#6366f1",
+    padding: 16,
+    shadowColor: "#6366f1",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  uploadedDocumentInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  documentIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#ede9fe",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  documentDetails: {
+    flex: 1,
+  },
+  documentName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 4,
+  },
+  documentSize: {
+    fontSize: 12,
+    color: "#64748b",
+    fontWeight: "500",
+  },
+  removeDocumentButton: {
+    padding: 8,
+  },
+  generateQuestionsButton: {
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#f59e0b",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  generateQuestionsGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+  },
+  generateQuestionsText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  questionCountInput: {
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  questionCountLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0f172a",
+    marginBottom: 8,
+  },
+  questionCountWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  questionCountField: {
+    backgroundColor: "#faf5ff",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#ede9fe",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a",
+    width: 80,
+    textAlign: "center",
+  },
+  questionCountHint: {
+    fontSize: 13,
+    color: "#64748b",
+    fontWeight: "500",
   },
 });

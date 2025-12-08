@@ -316,43 +316,6 @@ export default function SearchModal() {
               </View>
             </View>
 
-            {/* Popular Creators */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Popular Creators</Text>
-                <TouchableOpacity>
-                  <Text style={styles.seeAllText}>See All</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={styles.creatorsContainer}>
-                {[1, 2, 3].map((creator) => (
-                  <View key={creator} style={styles.creatorCard}>
-                    <View style={styles.creatorInfo}>
-                      <View style={styles.creatorAvatar}>
-                        <Ionicons name="person" size={24} color="#6366f1" />
-                      </View>
-                      <View style={styles.creatorDetails}>
-                        <Text style={styles.creatorName}>Creator {creator}</Text>
-                        <Text style={styles.creatorStats}>
-                          <Ionicons name="document-text" size={12} color="#94a3b8" /> 24 Quizzes
-                        </Text>
-                      </View>
-                    </View>
-                    <TouchableOpacity style={styles.followButton}>
-                      <LinearGradient
-                        colors={["#6366f1", "#7c3aed"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.followButtonGradient}
-                      >
-                        <Text style={styles.followButtonText}>Follow</Text>
-                      </LinearGradient>
-                    </TouchableOpacity>
-                  </View>
-                ))}
-              </View>
-            </View>
-
             {/* Search Tips */}
             <View style={[styles.section, styles.tipsSection]}>
               <View style={styles.tipCard}>
