@@ -376,7 +376,7 @@ export default function QuizDetailsPage() {
             <View style={styles.quickStatDivider} />
             <View style={styles.quickStatItem}>
               <Ionicons name="people-outline" size={20} color="#fff" />
-              <Text style={styles.quickStatText}>{} Attempts</Text>
+              <Text style={styles.quickStatText}>{quiz.total_attempts} Attempts</Text>
             </View>
           </View>
 

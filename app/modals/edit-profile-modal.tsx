@@ -21,7 +21,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { supabase } from "../../initSupabase";
+import { decode } from "base64-arraybuffer";
 
 interface EditProfileModalProps {
   visible: boolean;
@@ -95,10 +97,13 @@ export default function EditProfileModal({
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `profile-photos/${fileName}`;
 
-      // Convert URI to blob for upload
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const arrayBuffer = await blob.arrayBuffer();
+      // Read the file as base64
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: "base64",
+      });
+
+      // Convert base64 to array buffer
+      const arrayBuffer = decode(base64);
 
       // Upload to Supabase storage
       const { error: uploadError } = await supabase.storage

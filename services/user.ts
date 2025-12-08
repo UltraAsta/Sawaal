@@ -29,6 +29,28 @@ export async function fetchTopLeaderboard(): Promise<LeaderboardUser[]> {
   return (data || []) as LeaderboardUser[];
 }
 
+export async function fetchUserLeaderboardPosition(userId: string): Promise<{
+  position: number;
+  user: LeaderboardUser;
+} | null> {
+  // Get all users ordered by points to find position
+  const { data, error } = await supabase
+    .from("top_users_by_points")
+    .select("*")
+    .order("total_points", { ascending: false });
+
+  if (error) throw error;
+  if (!data) return null;
+
+  const position = data.findIndex((user) => user.user_id === userId);
+  if (position === -1) return null;
+
+  return {
+    position: position + 1,
+    user: data[position],
+  };
+}
+
 export function assignRank(points: number): string {
   if (points <= 10) return UserRank.RisingStar;
   if (points > 10 && points <= 100) return UserRank.SmartCookie;

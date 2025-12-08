@@ -56,6 +56,7 @@ export interface Quiz {
     difficulty_name: string;
   };
   questions: Question[];
+  quiz_attempts?: { id: string }[];
 }
 
 export interface Comment {

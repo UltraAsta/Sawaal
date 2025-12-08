@@ -7,7 +7,12 @@ import { FlatList, RefreshControl, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { LeaderboardUser, UserRank } from "@/models/user";
-import { assignRank, fetchCurrentUser, fetchTopLeaderboard } from "@/services/user";
+import {
+  assignRank,
+  fetchCurrentUser,
+  fetchTopLeaderboard,
+  fetchUserLeaderboardPosition,
+} from "@/services/user";
 
 // Mock function to fetch leaderboard data
 
@@ -35,6 +40,14 @@ export default function Leaderboard() {
     queryKey: ["leaderboard"],
     queryFn: fetchTopLeaderboard,
     staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+
+  // Fetch user's leaderboard position
+  const { data: userPosition, refetch: refetchUserPosition } = useQuery({
+    queryKey: ["userLeaderboardPosition", currentUser?.id],
+    queryFn: () => fetchUserLeaderboardPosition(currentUser!.id),
+    enabled: !!currentUser?.id,
+    staleTime: 2 * 60 * 1000,
   });
 
   const getMedalEmoji = (position: number) => {
@@ -191,7 +204,7 @@ export default function Leaderboard() {
 
       {/* Leaderboard List */}
       <FlatList
-        data={leaderboard}
+        data={leaderboard.slice(0, 15)}
         renderItem={renderLeaderboardItem}
         keyExtractor={(item) => item.user_id}
         contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 85 }]}
@@ -199,10 +212,69 @@ export default function Leaderboard() {
         refreshControl={
           <RefreshControl
             refreshing={isRefetchingLeaderboard}
-            onRefresh={refetchLeaderboard}
+            onRefresh={() => {
+              refetchLeaderboard();
+              refetchUserPosition();
+            }}
             tintColor="#6366f1"
             colors={["#6366f1"]}
           />
+        }
+        ListFooterComponent={
+          userPosition && userPosition.position > 15 ? (
+            <View style={styles.userPositionSection}>
+              <View style={styles.dividerContainer}>
+                <View style={styles.divider} />
+                <Text style={styles.dividerText}>Your Position</Text>
+                <View style={styles.divider} />
+              </View>
+              <View style={[styles.leaderboardItem, styles.currentUserItem]}>
+                <View style={styles.positionContainer}>
+                  <Text style={styles.positionText}>#{userPosition.position}</Text>
+                </View>
+
+                <View style={styles.userInfo}>
+                  <View style={styles.avatarContainer}>
+                    <Ionicons name="person" size={24} color="#6366f1" />
+                  </View>
+                  <View style={styles.userDetails}>
+                    <Text style={[styles.username, styles.currentUsername]}>
+                      {userPosition.user.username} (You)
+                    </Text>
+                    <View style={styles.rankBadge}>
+                      <View
+                        style={[
+                          styles.rankDot,
+                          {
+                            backgroundColor: getRankColor(
+                              assignRank(userPosition.user.total_points)
+                            ),
+                          },
+                        ]}
+                      />
+                      <Text
+                        style={[
+                          styles.rankText,
+                          {
+                            color: getRankColor(assignRank(userPosition.user.total_points)),
+                          },
+                        ]}
+                      >
+                        {assignRank(userPosition.user.total_points)}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.pointsContainer}>
+                  <Text style={styles.pointsValue}>
+                    {userPosition.user.total_points?.toLocaleString()}
+                  </Text>
+                  <Text style={styles.pointsLabel}>pts</Text>
+                </View>
+              </View>
+            </View>
+          ) : null
         }
       />
     </View>
@@ -476,5 +548,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: "#64748b",
+  },
+  userPositionSection: {
+    marginTop: 16,
+  },
+  dividerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  divider: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#e2e8f0",
+  },
+  dividerText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#94a3b8",
+    marginHorizontal: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 });
