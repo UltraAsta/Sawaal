@@ -10,26 +10,20 @@ async function extractTextFromPDF(uri: string): Promise<string> {
   try {
     // Read PDF as base64
     const response = await fetch(uri);
-    const blob = await response.blob();
+    const arrayBuffer = await response.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
 
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const base64data = reader.result as string;
-          // Remove the data URL prefix to get just the base64 string
-          const base64Content = base64data.split(',')[1];
+    // Convert to base64
+    let binary = '';
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    const base64Content = btoa(binary);
 
-          // Use OpenAI's API to extract text from the PDF
-          const extractedText = await extractTextFromPDFWithOpenAI(base64Content);
-          resolve(extractedText);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      reader.onerror = () => reject(new Error('Failed to read PDF file'));
-      reader.readAsDataURL(blob);
-    });
+    // Use OpenAI's API to extract text from the PDF
+    const extractedText = await extractTextFromPDFWithOpenAI(base64Content);
+    return extractedText;
   } catch (error) {
     console.error('Error reading PDF:', error);
     throw new Error('Failed to read PDF file. Please try again or use a text file.');
@@ -44,50 +38,65 @@ async function extractTextFromPDFWithOpenAI(base64Content: string): Promise<stri
   }
 
   try {
-    // Use GPT-4o with vision to extract text from PDF
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a helpful assistant that extracts text content from documents. Extract all readable text exactly as it appears, maintaining structure and formatting where possible.',
-          },
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: 'Please extract all text content from this PDF document. Return only the extracted text, nothing else.',
-              },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:application/pdf;base64,${base64Content}`,
-                },
-              },
-            ],
-          },
-        ],
-        max_tokens: 4000,
-      }),
-    });
+    // Simple approach: Ask GPT-4o to work with the PDF content
+    // Note: Since OpenAI's chat API doesn't directly support PDF in messages,
+    // we'll try to extract text by decoding the PDF structure ourselves first
+    // This is a simplified approach that may not work for all PDFs
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`OpenAI API error: ${errorData.error?.message || 'Unknown error'}`);
+    // Attempt basic text extraction from PDF
+    const decodedPDF = atob(base64Content);
+
+    // Simple PDF text extraction (works for basic PDFs with text streams)
+    // This regex looks for text between BT (Begin Text) and ET (End Text) markers
+    const textMatches = decodedPDF.match(/\(([^)]+)\)/g);
+
+    if (textMatches && textMatches.length > 0) {
+      // Extract text from parentheses (PDF text objects)
+      let extractedText = textMatches
+        .map(match => match.slice(1, -1)) // Remove parentheses
+        .join(' ')
+        .replace(/\\(\d{3})/g, (_match, octal) => String.fromCharCode(parseInt(octal, 8)))
+        .replace(/\\n/g, '\n')
+        .replace(/\\r/g, '\r')
+        .replace(/\\t/g, '\t')
+        .replace(/\\\\/g, '\\')
+        .replace(/\\([()])/g, '$1');
+
+      // Clean up the extracted text
+      extractedText = extractedText
+        // Remove control characters and binary data
+        .replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '')
+        // Remove excessive whitespace
+        .replace(/\s+/g, ' ')
+        // Remove duplicate consecutive lines
+        .split('\n')
+        .filter((line, idx, arr) => idx === 0 || line.trim() !== arr[idx - 1]?.trim())
+        .join('\n')
+        .trim();
+
+      // Limit the text to approximately 100,000 characters (~25,000 tokens)
+      // This ensures we stay well under the 128k token limit
+      const MAX_CHARS = 100000;
+      if (extractedText.length > MAX_CHARS) {
+        console.warn(`PDF text is very long (${extractedText.length} chars), truncating to ${MAX_CHARS} chars`);
+        extractedText = extractedText.substring(0, MAX_CHARS) + '\n\n[Content truncated due to length...]';
+      }
+
+      if (extractedText.trim().length > 100) {
+        console.log(`Extracted ${extractedText.length} characters from PDF`);
+        return extractedText;
+      }
     }
 
-    const data = await response.json();
-    return data.choices[0].message.content;
-  } catch (error) {
-    console.error('Error extracting text with OpenAI:', error);
-    throw new Error('Failed to extract text from PDF. Please try using a text file instead.');
+    // Fallback: If basic extraction didn't work, inform the user
+    throw new Error('Unable to extract text from this PDF. The PDF may be image-based or use complex formatting. Please try converting it to a text file or using a different PDF.');
+
+  } catch (error: any) {
+    console.error('Error extracting text from PDF:', error);
+    if (error.message && error.message.includes('Unable to extract text')) {
+      throw error;
+    }
+    throw new Error('Failed to extract text from PDF. Please try using a text file or a simpler PDF format.');
   }
 }
 
@@ -139,6 +148,19 @@ async function generateQuestionsWithOpenAI(
     throw new Error('OpenAI API key not configured. Please add EXPO_PUBLIC_OPENAI_API_KEY to your .env file');
   }
 
+  // Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+  // We need to leave room for the prompt template (~500 tokens) + response (~2000 tokens)
+  // Max context: 128k tokens, so we limit content to ~80k tokens (320k chars) to be safe
+  const MAX_CONTENT_CHARS = 50000; // ~12,500 tokens, leaving plenty of room
+  let truncatedContent = content;
+
+  if (content.length > MAX_CONTENT_CHARS) {
+    console.warn(`Content too long (${content.length} chars). Truncating to ${MAX_CONTENT_CHARS} chars.`);
+    truncatedContent = content.substring(0, MAX_CONTENT_CHARS) + '\n\n[Content truncated for processing...]';
+  }
+
+  console.log(`Generating questions from ${truncatedContent.length} characters of content`);
+
   const prompt = `Based on the following content, generate exactly ${numberOfQuestions} multiple choice quiz questions.
 
 IMPORTANT INSTRUCTIONS:
@@ -150,7 +172,7 @@ IMPORTANT INSTRUCTIONS:
 - Avoid trick questions
 
 Content to generate questions from:
-${content}
+${truncatedContent}
 
 Return ONLY a valid JSON array in this EXACT format (no markdown, no code blocks, just pure JSON):
 [

@@ -224,6 +224,47 @@ export async function deleteVote(id: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function deleteQuiz(quizId: string): Promise<void> {
+  const { error } = await supabase.from("quizzes").delete().eq("id", quizId);
+  if (error) throw error;
+}
+
+export async function updateQuiz(
+  quizId: string,
+  quizData: {
+    title: string;
+    description: string;
+    category_id: string;
+    difficulty_id: string;
+    is_public: boolean;
+    is_ai_generated: boolean;
+  }
+): Promise<void> {
+  const { error } = await supabase.from("quizzes").update(quizData).eq("id", quizId);
+  if (error) throw error;
+}
+
+export async function updateQuestions(
+  quizId: string,
+  questions: Partial<Question>[]
+): Promise<void> {
+  // Delete existing questions for this quiz
+  const { error: deleteError } = await supabase.from("questions").delete().eq("quiz_id", quizId);
+  if (deleteError) throw deleteError;
+
+  // Insert new questions
+  const questionsData = questions.map((q, index) => ({
+    quiz_id: quizId,
+    question_text: q.question_text,
+    options: q.options,
+    correct_answer: q.correct_answer,
+    order_index: index,
+  }));
+
+  const { error: insertError } = await supabase.from("questions").insert(questionsData);
+  if (insertError) throw insertError;
+}
+
 export async function fetchCreatorQuizzes(creatorId: string): Promise<Quiz[]> {
   const { data, error } = await supabase
     .from("quizzes")

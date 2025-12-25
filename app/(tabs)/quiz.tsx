@@ -4,13 +4,14 @@ import BackButton from "@/components/back-button";
 import { Question, QuizCategory, QuizDifficulty } from "@/models/quiz";
 import { UserRole } from "@/models/user";
 import { generateQuestionsFromDocument } from "@/services/ai";
+import { fetchQuizById, updateQuestions, updateQuiz } from "@/services/quiz";
 import { fetchCurrentUser } from "@/services/user";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { useState } from "react";
+import { router, useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -30,6 +31,10 @@ import { supabase } from "../../initSupabase";
 import CategoryModal from "../modals/category-modal";
 
 export default function CreateQuiz() {
+  const params = useLocalSearchParams();
+  const editQuizId = params.edit as string | undefined;
+  const isEditMode = !!editQuizId;
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
@@ -73,6 +78,27 @@ export default function CreateQuiz() {
     queryFn: fetchCurrentUser,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Fetch quiz data when in edit mode
+  const { data: existingQuiz, isLoading: loadingQuizData } = useQuery({
+    queryKey: ["quiz", editQuizId],
+    queryFn: () => fetchQuizById(editQuizId!),
+    enabled: isEditMode && !!editQuizId,
+    staleTime: 0,
+  });
+
+  // Pre-fill form when existing quiz data is loaded
+  useEffect(() => {
+    if (existingQuiz && isEditMode) {
+      setTitle(existingQuiz.title);
+      setDescription(existingQuiz.description || "");
+      setCategory(existingQuiz.category_id);
+      setDifficultyLevel(existingQuiz.difficulty as QuizDifficulty);
+      setIsPublic(existingQuiz.is_public);
+      setIsAiGenerated(existingQuiz.is_ai_generated || false);
+      setQuestions(existingQuiz.questions || []);
+    }
+  }, [existingQuiz, isEditMode]);
 
   const handleDocumentPick = async () => {
     try {
@@ -231,58 +257,81 @@ export default function CreateQuiz() {
     setLoading(true);
 
     try {
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      if (isEditMode && editQuizId) {
+        // Update existing quiz
+        await updateQuiz(editQuizId, {
+          title: title.trim(),
+          description: description.trim() || "",
+          category_id: category,
+          difficulty_id: difficultyLevel?.id || "",
+          is_public: isPublic,
+          is_ai_generated: isAiGenerated,
+        });
 
-      if (!user) {
-        Alert.alert("Error", "You must be logged in to create a quiz");
-        setLoading(false);
-        return;
-      }
+        // Update questions
+        await updateQuestions(editQuizId, questions);
 
-      // Insert quiz into database
-      const { data: quizData, error: quizError } = await supabase
-        .from("quizzes")
-        .insert([
+        Alert.alert("Success", "Quiz updated successfully!", [
           {
-            creator_id: user.id,
-            title: title.trim(),
-            description: description.trim() || null,
-            category_id: category,
-            difficulty_id: difficultyLevel?.id,
-            is_public: isPublic,
-            is_ai_generated: isAiGenerated,
+            text: "OK",
+            onPress: () => router.back(),
           },
-        ])
-        .select()
-        .single();
+        ]);
+      } else {
+        // Create new quiz
+        // Get current user
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (quizError) throw quizError;
+        if (!user) {
+          Alert.alert("Error", "You must be logged in to create a quiz");
+          setLoading(false);
+          return;
+        }
 
-      // Insert questions
-      const questionsData = questions.map((q, index) => ({
-        quiz_id: quizData.id,
-        question_text: q.question_text,
-        options: q.options,
-        correct_answer: q.correct_answer,
-        order_index: index,
-      }));
+        // Insert quiz into database
+        const { data: quizData, error: quizError } = await supabase
+          .from("quizzes")
+          .insert([
+            {
+              creator_id: user.id,
+              title: title.trim(),
+              description: description.trim() || null,
+              category_id: category,
+              difficulty_id: difficultyLevel?.id,
+              is_public: isPublic,
+              is_ai_generated: isAiGenerated,
+            },
+          ])
+          .select()
+          .single();
 
-      const { error: questionsError } = await supabase.from("questions").insert(questionsData);
+        if (quizError) throw quizError;
 
-      if (questionsError) throw questionsError;
+        // Insert questions
+        const questionsData = questions.map((q, index) => ({
+          quiz_id: quizData.id,
+          question_text: q.question_text,
+          options: q.options,
+          correct_answer: q.correct_answer,
+          order_index: index,
+        }));
 
-      Alert.alert("Success", "Quiz created successfully!", [
-        {
-          text: "OK",
-          onPress: () => router.back(),
-        },
-      ]);
+        const { error: questionsError } = await supabase.from("questions").insert(questionsData);
+
+        if (questionsError) throw questionsError;
+
+        Alert.alert("Success", "Quiz created successfully!", [
+          {
+            text: "OK",
+            onPress: () => router.back(),
+          },
+        ]);
+      }
     } catch (error) {
-      console.error("Error creating quiz:", error);
-      Alert.alert("Error", "Failed to create quiz. Please try again.");
+      console.error("Error saving quiz:", error);
+      Alert.alert("Error", `Failed to ${isEditMode ? "update" : "create"} quiz. Please try again.`);
     } finally {
       setLoading(false);
     }
@@ -297,7 +346,7 @@ export default function CreateQuiz() {
       >
         <View style={styles.headerContent}>
           <BackButton />
-          <Text style={styles.headerTitle}>Create Quiz</Text>
+          <Text style={styles.headerTitle}>{isEditMode ? "Edit Quiz" : "Create Quiz"}</Text>
           <View style={styles.placeholder} />
         </View>
       </LinearGradient>
@@ -726,7 +775,9 @@ export default function CreateQuiz() {
               ) : (
                 <>
                   <Ionicons name="checkmark-circle" size={22} color="#fff" />
-                  <Text style={styles.createButtonText}>Create Quiz</Text>
+                  <Text style={styles.createButtonText}>
+                    {isEditMode ? "Update Quiz" : "Create Quiz"}
+                  </Text>
                 </>
               )}
             </LinearGradient>

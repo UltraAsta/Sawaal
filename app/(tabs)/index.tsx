@@ -340,25 +340,13 @@ export default function Home() {
               style={styles.menuItem}
               onPress={() => {
                 setMenuVisible(false);
-                router.push(`/profile/${user?.id}`);
+                router.push("/(tabs)/profile");
               }}
             >
               <View style={styles.menuIconContainer}>
                 <Ionicons name="person-outline" size={20} color="#6366f1" />
               </View>
               <Text style={styles.menuText}>View Profile</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-              }}
-            >
-              <View style={styles.menuIconContainer}>
-                <Ionicons name="create-outline" size={20} color="#6366f1" />
-              </View>
-              <Text style={styles.menuText}>Edit Profile</Text>
             </TouchableOpacity>
 
             <View style={styles.menuDivider} />

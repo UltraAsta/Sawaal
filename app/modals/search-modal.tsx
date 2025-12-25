@@ -295,9 +295,6 @@ export default function SearchModal() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Recent Searches</Text>
-                <TouchableOpacity>
-                  <Text style={styles.clearAllText}>Clear All</Text>
-                </TouchableOpacity>
               </View>
               <View style={styles.recentContainer}>
                 {RECENT_SEARCHES.map((search, index) => (

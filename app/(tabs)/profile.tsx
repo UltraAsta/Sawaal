@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@/contexts/AuthContexts";
 import { fetchUserQuizAttempts, fetchUserQuizzes } from "@/services/quiz";
 import { assignRank, fetchCurrentUser } from "@/services/user";
 import { Ionicons } from "@expo/vector-icons";
@@ -22,6 +23,7 @@ import EditProfileModal from "../modals/edit-profile-modal";
 export default function Profile() {
   const insets = useSafeAreaInsets();
   const [showEditModal, setShowEditModal] = useState(false);
+  const { signOut } = useAuth();
 
   // Fetch current user
   const {
@@ -60,8 +62,7 @@ export default function Profile() {
   const quizzesCreated = createdQuizzes.length;
 
   const handleLogout = async () => {
-    const { supabase } = await import("@/initSupabase");
-    await supabase.auth.signOut();
+    await signOut();
     router.replace("/(auth)/login");
   };
 

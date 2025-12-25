@@ -1,4 +1,4 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -18,9 +18,22 @@ const queryClient = new QueryClient({
 });
 
 function RootLayoutNav() {
-  const { user, loading } = useAuth();
+  const { user, loading, registerCleanupCallback, unregisterCleanupCallback } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Register cleanup callbacks
+  useEffect(() => {
+    const cleanup = () => {
+      // Clear React Query cache
+      queryClient.clear();
+      console.log("React Query cache cleared on logout");
+    };
+
+    registerCleanupCallback(cleanup);
+    return () => unregisterCleanupCallback(cleanup);
+  }, [registerCleanupCallback, unregisterCleanupCallback, queryClient]);
 
   useEffect(() => {
     // Don't do anything while loading
@@ -34,10 +47,10 @@ function RootLayoutNav() {
       if (!user && !inAuthGroup) {
         // Redirect to login if not authenticated
         router.replace("/(auth)/login");
-      } else if (user && !onboardingCompleted && segments[1] !== "onboarding") {
+      } else if (user && onboardingCompleted === false && segments[1] !== "onboarding") {
         // Redirect to onboarding if authenticated but onboarding not completed
         router.replace("/(auth)/onboarding");
-      } else if (user && onboardingCompleted && inAuthGroup) {
+      } else if (user && onboardingCompleted === true && inAuthGroup) {
         // Redirect to tabs if authenticated and onboarding completed
         router.replace("/(tabs)");
       }

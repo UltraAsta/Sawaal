@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { useAuth } from "./AuthContexts";
 
 interface SearchFilters {
   query: string;
@@ -25,6 +26,18 @@ const defaultFilters: SearchFilters = {
 
 export function SearchProvider({ children }: { children: React.ReactNode }) {
   const [filters, setFilters] = useState<SearchFilters>(defaultFilters);
+  const { registerCleanupCallback, unregisterCleanupCallback } = useAuth();
+
+  // Register cleanup callback
+  useEffect(() => {
+    const cleanup = () => {
+      setFilters(defaultFilters);
+      console.log("Search filters cleared on logout");
+    };
+
+    registerCleanupCallback(cleanup);
+    return () => unregisterCleanupCallback(cleanup);
+  }, [registerCleanupCallback, unregisterCleanupCallback]);
 
   const setSearchQuery = (query: string) => {
     setFilters((prev) => ({ ...prev, query }));

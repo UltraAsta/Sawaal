@@ -39,13 +39,13 @@ export default function Login() {
       if (error) {
         Alert.alert("Login Failed", error.message);
       } else {
-        // navigate if the user didn't finish their onboarding yet
-        if (!data.user.user_metadata.onboarding_completed) {
+        // Navigate based on onboarding status
+        if (data.user.user_metadata.onboarding_completed === false) {
           router.replace("/(auth)/onboarding");
+        } else {
+          // Navigate to main app
+          router.replace("/(tabs)");
         }
-
-        // Navigate to main app
-        router.replace("/(tabs)");
       }
     } catch (error: any) {
       Alert.alert("Error", error.message);

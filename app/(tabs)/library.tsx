@@ -1,7 +1,12 @@
 "use client";
 
 import { Quiz, QuizAttemptWithQuiz } from "@/models/quiz";
-import { fetchSavedQuizzes, fetchUserQuizAttempts, fetchUserQuizzes } from "@/services/quiz";
+import {
+  deleteQuiz,
+  fetchSavedQuizzes,
+  fetchUserQuizAttempts,
+  fetchUserQuizzes,
+} from "@/services/quiz";
 import { fetchCurrentUser } from "@/services/user";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
@@ -12,6 +17,7 @@ import {
   Alert,
   FlatList,
   RefreshControl,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -27,7 +33,7 @@ export default function MyQuizzes() {
   const { data: user } = useQuery({
     queryKey: ["currentUser"],
     queryFn: fetchCurrentUser,
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: 1 * 60 * 1000, // 5 minutes
   });
 
   // Fetch created quizzes
@@ -103,6 +109,58 @@ export default function MyQuizzes() {
         return "#94a3b8"; // Gray
     }
   }
+
+  const handleShareQuiz = async (quiz: Quiz) => {
+    try {
+      const shareMessage = `Check out this quiz: "${quiz.title}"\n\n${quiz.description}\n\nDifficulty: ${quiz.difficulty.difficulty_name}\nQuestions: ${quiz.questions.length}\n\nTake the quiz now!`;
+
+      const result = await Share.share({
+        message: shareMessage,
+        title: quiz.title,
+      });
+
+      if (result.action === Share.sharedAction) {
+        if (result.activityType) {
+          // Shared with activity type
+          console.log("Shared with activity type:", result.activityType);
+        } else {
+          // Shared
+          console.log("Quiz shared successfully");
+        }
+      } else if (result.action === Share.dismissedAction) {
+        // Dismissed
+        console.log("Share dismissed");
+      }
+    } catch (error: any) {
+      Alert.alert("Error", error.message);
+    }
+  };
+
+  const handleDeleteQuiz = (quiz: Quiz) => {
+    Alert.alert(
+      "Delete Quiz",
+      `Are you sure you want to delete "${quiz.title}"? This action cannot be undone.`,
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteQuiz(quiz.id);
+              refetchCreated();
+              Alert.alert("Success", "Quiz deleted successfully");
+            } catch (error: any) {
+              Alert.alert("Error", error.message || "Failed to delete quiz");
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const renderCreatedQuiz = ({ item }: { item: Quiz }) => (
     <TouchableOpacity
@@ -188,8 +246,7 @@ export default function MyQuizzes() {
           style={styles.actionButton}
           onPress={(e) => {
             e.stopPropagation();
-            // Navigate to edit page
-            Alert.alert("Edit", "Edit functionality coming soon!");
+            router.push(`/(tabs)/quiz?edit=${item.id}`);
           }}
         >
           <Ionicons name="create-outline" size={18} color="#6366f1" />
@@ -209,11 +266,21 @@ export default function MyQuizzes() {
           style={styles.actionButton}
           onPress={(e) => {
             e.stopPropagation();
-            Alert.alert("Share", "Share functionality coming soon!");
+            handleShareQuiz(item);
           }}
         >
           <Ionicons name="share-social-outline" size={18} color="#6366f1" />
           <Text style={styles.actionText}>Share</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, styles.deleteButton]}
+          onPress={(e) => {
+            e.stopPropagation();
+            handleDeleteQuiz(item);
+          }}
+        >
+          <Ionicons name="trash-outline" size={18} color="#ef4444" />
+          <Text style={styles.deleteText}>Delete</Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>
@@ -791,6 +858,14 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 14,
     color: "#6366f1",
+    fontWeight: "700",
+  },
+  deleteButton: {
+    borderColor: "#fee2e2",
+  },
+  deleteText: {
+    fontSize: 14,
+    color: "#ef4444",
     fontWeight: "700",
   },
   progressBarContainer: {

@@ -6,6 +6,7 @@ import type { Student, Tutor } from "@/models/user";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -124,7 +125,8 @@ export default function OnboardingScreen() {
         },
       });
 
-      // Success - navigation will be handled by the auth context
+      // Success - navigate to main app
+      router.replace("/(tabs)");
     } catch (e: unknown) {
       console.log(e);
       Alert.alert("Error", "Something went wrong, please try again later");

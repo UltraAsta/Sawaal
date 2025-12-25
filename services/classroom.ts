@@ -30,17 +30,16 @@ export async function createClassroom(classroom: Classroom, quizIds?: string[]):
 
   // Add quizzes to classroom if any were provided
   if (quizIds && quizIds.length > 0 && data) {
-    const classroomQuizzes = quizIds.map((quizId) => ({
-      classroom_id: data.id,
-      quiz_id: quizId,
-    }));
+    // Update each quiz to assign it to the classroom
+    for (const quizId of quizIds) {
+      const { error: updateError } = await supabase
+        .from("quizzes")
+        .update({ classroom_id: data.id, is_practice: true })
+        .eq("id", quizId);
 
-    const { error: quizzesError } = await supabase
-      .from("classroom_quizzes")
-      .insert(classroomQuizzes);
-
-    if (quizzesError) {
-      console.error("Failed to add quizzes to classroom:", quizzesError);
+      if (updateError) {
+        console.error("Failed to add quiz to classroom:", updateError);
+      }
     }
   }
 

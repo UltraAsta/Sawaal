@@ -1,17 +1,31 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "../initSupabase";
+import { useAuth } from "./AuthContexts";
 
 interface BookmarkContextType {
   bookmarkedQuizIds: Set<string>;
   isBookmarked: (quizId: string) => boolean;
   toggleBookmark: (quizId: string, userId: string) => Promise<void>;
   refreshBookmarks: (userId: string) => Promise<void>;
+  clearBookmarks: () => void;
 }
 
 const BookmarkContext = createContext<BookmarkContextType | undefined>(undefined);
 
 export function BookmarkProvider({ children }: { children: React.ReactNode }) {
   const [bookmarkedQuizIds, setBookmarkedQuizIds] = useState<Set<string>>(new Set());
+  const { registerCleanupCallback, unregisterCleanupCallback } = useAuth();
+
+  // Register cleanup callback
+  useEffect(() => {
+    const cleanup = () => {
+      setBookmarkedQuizIds(new Set());
+      console.log("Bookmarks cleared on logout");
+    };
+
+    registerCleanupCallback(cleanup);
+    return () => unregisterCleanupCallback(cleanup);
+  }, [registerCleanupCallback, unregisterCleanupCallback]);
 
   const isBookmarked = (quizId: string) => {
     return bookmarkedQuizIds.has(quizId);
@@ -102,6 +116,10 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const clearBookmarks = () => {
+    setBookmarkedQuizIds(new Set());
+  };
+
   return (
     <BookmarkContext.Provider
       value={{
@@ -109,6 +127,7 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
         isBookmarked,
         toggleBookmark,
         refreshBookmarks,
+        clearBookmarks,
       }}
     >
       {children}
