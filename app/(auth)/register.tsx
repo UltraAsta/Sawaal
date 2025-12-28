@@ -55,16 +55,7 @@ export default function Register() {
       if (error) {
         Alert.alert("Registration Failed", error.message);
       } else if (data.user) {
-        // Create user record in users table
-        const { error: insertError } = await supabase.from("users").insert({
-          id: data.user.id,
-          email: data.user.email,
-        });
-
-        if (insertError) {
-          console.error("Error creating user record:", insertError);
-        }
-
+        // User record will be created during onboarding when we have the username
         // Navigation will be handled by _layout.tsx based on onboarding_completed status
         router.replace("/(auth)/onboarding");
       }

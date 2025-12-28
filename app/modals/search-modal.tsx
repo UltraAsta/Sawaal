@@ -1,10 +1,13 @@
 "use client";
 
+import { QuizCategory } from "@/models/quiz";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Animated,
   Dimensions,
   Keyboard,
@@ -16,19 +19,26 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { supabase } from "../../initSupabase";
 import { useSearch } from "../../contexts/SearchContext";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const CATEGORIES = [
-  { id: "all", name: "All", icon: "apps" as const },
-  { id: "science", name: "Science", icon: "flask" as const },
-  { id: "history", name: "History", icon: "time" as const },
-  { id: "geography", name: "Geography", icon: "earth" as const },
-  { id: "math", name: "Math", icon: "calculator" as const },
-  { id: "tech", name: "Tech", icon: "laptop" as const },
-  { id: "sports", name: "Sports", icon: "football" as const },
-];
+// Category icon mapping based on category name
+const getCategoryIcon = (categoryName: string): keyof typeof Ionicons.glyphMap => {
+  const name = categoryName.toLowerCase();
+  if (name.includes("science")) return "flask";
+  if (name.includes("history")) return "time";
+  if (name.includes("geography") || name.includes("geo")) return "earth";
+  if (name.includes("math")) return "calculator";
+  if (name.includes("tech") || name.includes("technology")) return "laptop";
+  if (name.includes("sport")) return "football";
+  if (name.includes("literature") || name.includes("book")) return "book";
+  if (name.includes("art")) return "color-palette";
+  if (name.includes("music")) return "musical-notes";
+  if (name.includes("general") || name.includes("knowledge")) return "bulb";
+  return "pricetag";
+};
 
 const DIFFICULTY_FILTERS = [
   { id: "all", name: "All Levels", color: "#94a3b8" },
@@ -53,6 +63,26 @@ export default function SearchModal() {
   const [slideAnim] = useState(new Animated.Value(SCREEN_HEIGHT));
   const [backdropAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.9));
+
+  // Fetch categories from database
+  const { data: dbCategories = [], isLoading: categoriesLoading } = useQuery({
+    queryKey: ["quiz_categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("quiz_categories").select("*");
+      if (error) throw error;
+      return data as QuizCategory[];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Combine "All" with database categories
+  const categories = [
+    { id: "all", category_name: "All", icon: "apps" as const },
+    ...dbCategories.map((cat) => ({
+      ...cat,
+      icon: getCategoryIcon(cat.category_name),
+    })),
+  ];
 
   useEffect(() => {
     // Animate in
@@ -201,43 +231,55 @@ export default function SearchModal() {
             {/* Categories */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Categories</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.categoriesContainer}
-              >
-                {CATEGORIES.map((category) => (
-                  <TouchableOpacity
-                    key={category.id}
-                    style={[
-                      styles.categoryCard,
-                      localCategory === category.id && styles.categoryCardActive,
-                    ]}
-                    onPress={() => setLocalCategory(category.id)}
-                  >
-                    <View
-                      style={[
-                        styles.categoryIconContainer,
-                        localCategory === category.id && styles.categoryIconActive,
-                      ]}
-                    >
-                      <Ionicons
-                        name={category.icon}
-                        size={20}
-                        color={localCategory === category.id ? "#fff" : "#6366f1"}
-                      />
-                    </View>
-                    <Text
-                      style={[
-                        styles.categoryName,
-                        localCategory === category.id && styles.categoryNameActive,
-                      ]}
-                    >
-                      {category.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+              {categoriesLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="small" color="#6366f1" />
+                </View>
+              ) : (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.categoriesContainer}
+                >
+                  {categories.map((category) => {
+                    // Convert category names to lowercase for comparison
+                    const categoryId = category.id === "all" ? "all" : category.category_name.toLowerCase();
+                    const isActive = localCategory === categoryId;
+
+                    return (
+                      <TouchableOpacity
+                        key={category.id}
+                        style={[
+                          styles.categoryCard,
+                          isActive && styles.categoryCardActive,
+                        ]}
+                        onPress={() => setLocalCategory(categoryId)}
+                      >
+                        <View
+                          style={[
+                            styles.categoryIconContainer,
+                            isActive && styles.categoryIconActive,
+                          ]}
+                        >
+                          <Ionicons
+                            name={category.icon}
+                            size={20}
+                            color={isActive ? "#fff" : "#6366f1"}
+                          />
+                        </View>
+                        <Text
+                          style={[
+                            styles.categoryName,
+                            isActive && styles.categoryNameActive,
+                          ]}
+                        >
+                          {category.category_name}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              )}
             </View>
 
             {/* Difficulty Filter */}
@@ -472,6 +514,11 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#0f172a",
     marginBottom: 16,
+  },
+  loadingContainer: {
+    paddingVertical: 20,
+    alignItems: "center",
+    justifyContent: "center",
   },
   seeAllText: {
     fontSize: 14,

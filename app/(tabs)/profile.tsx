@@ -216,16 +216,6 @@ export default function Profile() {
           <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.menuItem}>
-          <View style={styles.menuItemLeft}>
-            <View style={styles.menuIconContainer}>
-              <Ionicons name="shield-checkmark-outline" size={18} color="#6366f1" />
-            </View>
-            <Text style={styles.menuItemText}>Privacy & Security</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color="#94a3b8" />
-        </TouchableOpacity>
-
         <TouchableOpacity
           style={styles.menuItem}
           onPress={() => router.push("/settings/help-support")}

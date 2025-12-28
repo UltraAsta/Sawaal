@@ -79,14 +79,14 @@ export default function OnboardingScreen() {
         return;
       }
 
-      // Check if username is already taken
+      // Check if username is already taken by another user
       const { data: existingUser, error: fetchError } = await supabase
         .from("users")
         .select("*")
         .eq("username", formData.username)
         .single();
 
-      if (existingUser) {
+      if (existingUser && existingUser.id !== user.id) {
         Alert.alert("Error", "Username is already taken, please choose another one");
         setLoading(false);
         return;
@@ -99,21 +99,46 @@ export default function OnboardingScreen() {
         return;
       }
 
-      // Update user profile in the users table
-      const { error: updateError } = await supabase
+      // Check if this user already has a record (in case of retry after error)
+      const { data: currentUserRecord } = await supabase
         .from("users")
-        .update({
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (currentUserRecord) {
+        // Update existing record
+        const { error: updateError } = await supabase
+          .from("users")
+          .update({
+            username: formData.username.trim(),
+            bio: formData.description.trim(),
+            profile_photo_url: profileImage,
+            role: formData.role,
+          })
+          .eq("id", user.id);
+
+        if (updateError) {
+          Alert.alert("Error", updateError.message);
+          setLoading(false);
+          return;
+        }
+      } else {
+        // Create new record
+        const { error: insertError } = await supabase.from("users").insert({
+          id: user.id,
+          email: user.email,
           username: formData.username.trim(),
           bio: formData.description.trim(),
           profile_photo_url: profileImage,
           role: formData.role,
-        })
-        .eq("id", user.id);
+        });
 
-      if (updateError) {
-        Alert.alert("Error", updateError.message);
-        setLoading(false);
-        return;
+        if (insertError) {
+          Alert.alert("Error", insertError.message);
+          setLoading(false);
+          return;
+        }
       }
 
       // Update auth metadata
