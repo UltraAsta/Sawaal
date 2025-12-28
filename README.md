@@ -47,6 +47,7 @@ npm install
 ### 3. Configure Environment Variables
 
 1. Copy the example environment file:
+
    ```bash
    cp .env.example .env
    ```
@@ -54,6 +55,7 @@ npm install
 2. Open `.env` and fill in your credentials:
 
    **Required - Supabase Configuration:**
+
    - Go to [Supabase Dashboard](https://app.supabase.com)
    - Create a new project or select your existing project
    - Go to Project Settings → API
@@ -61,12 +63,14 @@ npm install
    - Copy the `anon/public` key and paste it as `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
    **Optional - OpenAI Configuration:**
+
    - Only needed if you want to use AI quiz generation from documents
    - Go to [OpenAI API Keys](https://platform.openai.com/api-keys)
    - Create a new API key
    - Copy and paste it as `EXPO_PUBLIC_OPENAI_API_KEY`
 
    Your `.env` file should look like:
+
    ```env
    EXPO_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
    EXPO_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc.......
@@ -75,8 +79,8 @@ npm install
 
 ### 4. Set Up Supabase Database
 
-> **⚠️ IMPORTANT: Free Tier Supabase databases automatically pause after 7 days of inactivity!**
-> Your database will stop working if you don't access it for 7 days. To reactivate:
+> **⚠️ IMPORTANT: Free Tier Supabase databases automatically pause after 7 days of inactivity!** Your database will stop working if you don't access it for 7 days. To reactivate:
+>
 > 1. Go to your [Supabase Dashboard](https://app.supabase.com)
 > 2. Click "Restore" or "Resume" on your paused project
 > 3. Wait a few minutes for the database to restart
@@ -113,6 +117,7 @@ You have several options to run the app:
 ### Option 1: Expo Go (Quickest - Recommended for Testing)
 
 1. Install the **Expo Go** app on your phone:
+
    - [iOS App Store](https://apps.apple.com/app/expo-go/id982107779)
    - [Google Play Store](https://play.google.com/store/apps/details?id=host.exp.exponent)
 
@@ -197,6 +202,7 @@ Sawaal/
 ### User Roles
 
 The app supports two user roles:
+
 - **Student**: Can take quizzes, join classrooms, track progress
 - **Tutor**: Can create quizzes, manage classrooms, assign quizzes to students
 
@@ -225,16 +231,19 @@ The app supports two user roles:
 ### Common Issues
 
 1. **"Network error" or "Failed to fetch"**
+
    - Check that your `.env` file is configured correctly
    - Ensure your Supabase project is active
    - Verify your internet connection
 
 2. **"OpenAI API key not configured"**
+
    - This only affects AI quiz generation
    - Add `EXPO_PUBLIC_OPENAI_API_KEY` to your `.env` file if you want this feature
    - You can still create quizzes manually without it
 
 3. **"Module not found" errors**
+
    - Run `npm install` again
    - Clear the Metro bundler cache: `npx expo start -c`
 
@@ -259,36 +268,11 @@ npm install
 
 ## Environment Variables Reference
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `EXPO_PUBLIC_SUPABASE_URL` | Yes | Your Supabase project URL |
-| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Yes | Your Supabase anonymous/public key |
-| `EXPO_PUBLIC_OPENAI_API_KEY` | No | OpenAI API key for AI quiz generation |
-
-## Security Notes
-
-- Never commit your `.env` file to version control
-- Keep your Supabase anon key and OpenAI API key secure
-- Row Level Security (RLS) policies should be enabled in Supabase for production
-- Use Supabase service role key only in secure server environments
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## License
-
-[Your License Here]
-
-## Support
-
-For issues and questions:
-- Create an issue in the repository
-- Contact the development team
+| Variable                        | Required | Description                           |
+| ------------------------------- | -------- | ------------------------------------- |
+| `EXPO_PUBLIC_SUPABASE_URL`      | Yes      | Your Supabase project URL             |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Yes      | Your Supabase anonymous/public key    |
+| `EXPO_PUBLIC_OPENAI_API_KEY`    | No       | OpenAI API key for AI quiz generation |
 
 ## Learn More
 
